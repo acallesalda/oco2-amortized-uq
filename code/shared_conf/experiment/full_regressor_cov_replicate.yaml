@@ -1,0 +1,56 @@
+# @package _global_
+# Deterministic scalar XCO2 regressor on the replicate-level split, with covariates.
+#
+# GENERATED TWIN of code/shared_conf/experiment/full_regressor_cov_grouped.yaml. The two configs are identical
+# except for the split they read: the table, the statistics directory and the weights
+# directory. Nothing about the architecture, the optimizer, the epoch count or the
+# covariate preset differs, because the whole purpose of this file is to make "the split"
+# the only difference between two columns of the revision's main table.
+#
+# code/test/test_replicate_configs.py asserts that, key by key. If you change a
+# hyperparameter here, change it in the grouped twin too or the test will say so.
+#
+# The split is the ORIGINAL replicate-level partition, written out as a table by
+# experiments/pipelines/make_replicate_split.py: every reference sounding appears in all
+# three partitions, and the test partition is exactly the published one. This is the
+# within-reference interpolation experiment reported as the secondary result -- trained with the
+# corrected covariates and the same search protocol as the group split, so that the pair
+# is a controlled comparison rather than two unrelated runs.
+
+defaults:
+  - override /data: local_simulated_replicate_cov
+
+covariates: scene
+
+# Inert at D=1 -- with one target the ppm and standardized RMSE differ by the constant
+# sigma * 1e6, so they select the same checkpoint. It is defined anyway so that
+# `select_metric=...` is a valid override for every task: chtc/bo_trial.sh passes it to
+# all three studies, and Hydra rejects an override of a key a config does not declare
+# ("Could not override 'select_metric'. No match in config"), which would have failed
+# every XCO2 trial in the search a minute into the job.
+select_metric: std
+
+hyps:
+  model: full_regressor
+  seed: 42
+  embed_dim: 512
+  nhead: 4
+  nlayers: 1
+  aux_dim: 32
+  lr: 6.471796937675714e-05
+  wd: 4.772666391106017e-06
+  epochs: 25
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+
+data:
+  seed: ${hyps.seed}
+  weight_path: /workspace/project/experiments/weights/replicate_split_v1/full_regressor_${covariates}
+
+hydra:
+  run:
+    dir: ${data.weight_path}/runs/${now:%Y%m%d_%H%M%S}

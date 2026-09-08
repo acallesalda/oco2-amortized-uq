@@ -1,0 +1,104 @@
+# Score one covariate-trained model against the held-out partition of the group split.
+#
+# The sibling of eval.sub. Separate for the same reason train_cov.sub is separate from
+# train.sub: this one names oco2_covariates_v1.tar.gz in transfer_input_files, and a
+# submit file that names a /staging object which does not exist fails at transfer time --
+# so the six baseline scoring jobs must not depend on it.
+#
+#     condor_submit eval_cov.sub \
+#         -a 'task = xco2' \
+#         -a 'det_tar = det_xco2_covprior.tar.gz' \
+#         -a 'covariates = scene_prior' \
+#         -a 'det_dir = full_regressor_scene_prior'
+#
+# This is the covariate comparison's scoring job, where det_dir is a preset-named
+# directory you type. The Bayesian-optimization winners are NOT scored with it:
+# chtc/bo_eval.sh computes both checkpoint paths from chtc/bo_studies.sh and runs
+# as a node of chtc/bo/bo_all.dag.
+#
+# The flow is OPTIONAL. Leave flow_tar undefined and the job scores the Laplace and ACOS
+# rows only, which is the right thing for a model that came out of the deterministic
+# search. Pass it once the matching flow exists:
+#
+#         -a 'flow_tar = nf_xco2_cov.tar.gz'
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe        = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+# Names the artifact, the tables and the output archive. Two covariate models of the same
+# task differ only by this.
+tag = best
+
+# The optional flow archive, resolved once here rather than in three places below.
+# `none` is what eval_cov.sh reads as "score without a flow".
+FLOW_IN  =
+FLOW_ARG = none
+if defined flow_tar
+  FLOW_IN  = , $(OSDF)/results/$(flow_tar)
+  FLOW_ARG = $(flow_tar)
+endif
+
+executable = eval_cov.sh
+arguments  = $(task) $(det_tar) $(FLOW_ARG) $(covariates) $(det_dir) $(tag)
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/results/$(det_tar)$(FLOW_IN)
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task)_$(tag).tar.gz
+transfer_output_remaps  = "eval_$(task)_$(tag).tar.gz = $(OSDF)/results/eval_$(task)_$(tag).tar.gz"
+
+# ---------------------------------------------------------------------------------
+# GPU
+# ---------------------------------------------------------------------------------
+# A Laplace refit over a few thousand training soundings, plus the test pass. Tens of
+# minutes, so "short" -- and short jobs match more slots, which matters when this is the
+# last thing standing between the run and the tables.
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task)_$(tag).log
+output = logs/eval_$(task)_$(tag).out
+error  = logs/eval_$(task)_$(tag).err
+
+# max_retries = 0, deliberately.
+#
+# ON_EXIT transfers the output archive even when the job exits nonzero, so a failed
+# attempt still uploads it and OSDF then refuses to overwrite:
+#
+#   Pelican Client Error: remote object already exists, upload aborted
+#
+# The retry is held with a transfer error that says nothing about the real failure.
+# Clean and resubmit instead:
+#
+#   ./fetch_results.sh --clean eval_$(task)_$(tag)
+#   condor_submit eval_cov.sub ...
+max_retries = 0
+
+queue

@@ -1,0 +1,45 @@
+# @package _global_
+# Deterministic near-surface (last-4 level) regressor on the reference-sounding-disjoint
+# split. Single run with fixed hyperparameters (no Bayesian optimization).
+#
+# Values are Table A1's "Deterministic / Near-surface" row. Unlike the scalar and
+# full-profile models there is no best_hparams.yaml for this task in the repository, so
+# Table A1 is the only record; confirm against the trained checkpoint with
+#   python3 experiments/dump_checkpoint_config.py \
+#       experiments/weights/full_regressor_profiles_last4_bo/net_profiles.pt
+#
+# Run:
+#   python3 experiments/train/train_profiles.py +experiment=full_regressor_profiles_last4_grouped
+# (the defaults list below already switches the data group; if your Hydra version
+#  rejects the override, add `data=local_simulated_grouped` on the command line)
+defaults:
+  - override /data: local_simulated_grouped
+
+task: profiles
+target_indices: last4
+weights_dir: /workspace/project/experiments/weights/group_split_v1/full_regressor_profiles_last4
+
+hyps:
+  model: full_regressor_profiles
+  seed: 42
+  embed_dim: 320
+  nhead: 4
+  nlayers: 2
+  aux_dim: 32
+  lr: 1.95e-4
+  wd: 4.76e-4
+  epochs: 40
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+  out_dim: 4
+
+data:
+  seed: ${hyps.seed}
+
+hydra:
+  run:
+    dir: ${weights_dir}/runs/${now:%Y%m%d_%H%M%S}

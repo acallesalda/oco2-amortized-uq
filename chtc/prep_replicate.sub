@@ -1,0 +1,78 @@
+# Build the ORIGINAL replicate-level split as a table, with statistics and covariates.
+#
+#     condor_submit prep_replicate.sub
+#
+# CPU only and small: it reads the annotations out of the dataset archives and never
+# extracts a spectrum, so it wants one core. The root of the rerun, though:
+# every node of chtc/bo_replicate/bo_all.dag reads the archive this produces.
+#
+# It needs the covariate archive as input rather than the raw HDF5, because
+# covariates_v1.csv.gz is keyed by sounding ID and does not depend on the split -- so the
+# 20-minute extraction that covariates.sub already paid for is not repeated. That is also
+# why there is no prep_replicate + covariates_replicate pair: one job does both halves.
+#
+# The split name is set inside prep_replicate.sh, not here. This job has no other split it
+# could build.
+
+include : site.conf
+
+universe       = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+executable = prep_replicate.sh
+arguments  =
+
+# A no-op at runtime -- prep_replicate.sh hardcodes `export OCO2_SPLIT=replicate_split_v1` -- and stated
+# here anyway, so the archive this job writes and the split inside it can be checked
+# against each other without opening the script. check_submit_macros.py does that,
+# after prep_ext_cap.sub was generated without one and built the capped table under
+# the uncapped name (2026-09-08).
+environment = "OCO2_SPLIT=replicate_split_v1"
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz
+
+should_transfer_files  = YES
+when_to_transfer_output = ON_EXIT
+
+# One archive, holding the split table, its statistics AND the augmented table --
+# job_common.sh's oco2_unpack_split knows to expect all three here for this split.
+transfer_output_files  = oco2_replicate_split_v1.tar.gz
+transfer_output_remaps = "oco2_replicate_split_v1.tar.gz = $(OSDF)/oco2_replicate_split_v1.tar.gz"
+
+requirements = $(STAGING_REQ)
+
+stream_output = true
+stream_error  = true
+
+# Self-sized rather than including job_resources.conf, as audit.sub and
+# reprocess.sub are. That file is written for the jobs that extract the 43k .npy
+# spectra and hand them to a DataLoader: 4 cores, 24 GB, 40 GB of scratch. This job
+# opens no spectrum -- prep_replicate.sh calls oco2_unpack_annotations, which takes
+# aux_data.csv out of each archive and nothing else -- so all it ever holds is the
+# container, ~800 MB of tarball it deletes as it reads, and a few hundred MB of CSV.
+#
+# The old request was not wrong, it was expensive to schedule: a 4-core 24 GB 40 GB
+# slot with /staging access is a big machine, and the job spent longer waiting for
+# one than it would have spent running on a small one.
+request_cpus   = 1
+request_memory = 8GB
+request_disk   = 12GB
+
+log    = logs/prep_replicate.log
+output = logs/prep_replicate.out
+error  = logs/prep_replicate.err
+
+# max_retries = 0, deliberately. ON_EXIT transfers the archive even on a nonzero exit and
+# OSDF then refuses to overwrite it, so the retry is held with a transfer error that says
+# nothing about the real failure. Clean and resubmit:
+#
+#   ./fetch_results.sh --clean oco2_replicate_split_v1
+#   condor_submit prep_replicate.sub
+max_retries = 0
+
+queue

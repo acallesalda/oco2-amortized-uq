@@ -1,0 +1,35 @@
+# @package _global_
+# CONTROL. 20-level profile regressor, identical to full_regressor_profiles_grouped.yaml
+# except that it trains on the original replicate-level split. See
+# full_regressor_profiles_last4_replicate.yaml for why the control set exists.
+#
+# Run:
+#   condor_submit train.sub -a 'job_name = det_profiles_replicate' -a 'gpu_length = short'
+task: profiles
+target_indices: all
+weights_dir: /workspace/project/experiments/weights/replicate_control/full_regressor_profiles
+
+hyps:
+  model: full_regressor_profiles
+  seed: 42
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+  aux_dim: 32
+  lr: 8.0e-4
+  wd: 9.1e-4
+  epochs: 40
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+  out_dim: 20
+
+data:
+  seed: ${hyps.seed}
+
+hydra:
+  run:
+    dir: ${weights_dir}/runs/${now:%Y%m%d_%H%M%S}

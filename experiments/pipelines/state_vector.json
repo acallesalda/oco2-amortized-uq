@@ -1,0 +1,576 @@
+{
+  "file": "/workspace/data/oco2/simulated/og_data/Cluster01/lnd_nadir_202002_clst01_fp_aggregate_retrieval_ref94.h5",
+  "top_level_groups": [
+    "FilterVariables",
+    "RetrievalHeader",
+    "RetrievalResults",
+    "SpectralParameters",
+    "StateVector"
+  ],
+  "state_vector_names": [
+    "CO2 VMR for Press Lvl 1",
+    "CO2 VMR for Press Lvl 2",
+    "CO2 VMR for Press Lvl 3",
+    "CO2 VMR for Press Lvl 4",
+    "CO2 VMR for Press Lvl 5",
+    "CO2 VMR for Press Lvl 6",
+    "CO2 VMR for Press Lvl 7",
+    "CO2 VMR for Press Lvl 8",
+    "CO2 VMR for Press Lvl 9",
+    "CO2 VMR for Press Lvl 10",
+    "CO2 VMR for Press Lvl 11",
+    "CO2 VMR for Press Lvl 12",
+    "CO2 VMR for Press Lvl 13",
+    "CO2 VMR for Press Lvl 14",
+    "CO2 VMR for Press Lvl 15",
+    "CO2 VMR for Press Lvl 16",
+    "CO2 VMR for Press Lvl 17",
+    "CO2 VMR for Press Lvl 18",
+    "CO2 VMR for Press Lvl 19",
+    "CO2 VMR for Press Lvl 20",
+    "H2O Scaling factor",
+    "Surface Pressure (Pascals)",
+    "Temperature Offset (Kelvin)",
+    "Aerosol Shape SO Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape SO Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape SO Logarithmic Gaussian for Coefficient 3",
+    "Aerosol Shape DU Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape DU Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape DU Logarithmic Gaussian for Coefficient 3",
+    "Aerosol Shape Ice Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape Ice Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape Ice Logarithmic Gaussian for Coefficient 3",
+    "Aerosol Shape Water Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape Water Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape Water Logarithmic Gaussian for Coefficient 3",
+    "Aerosol Shape ST Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape ST Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape ST Logarithmic Gaussian for Coefficient 3",
+    "Ground BRDF Soil A-Band Weight coefficent 1",
+    "Ground BRDF Soil A-Band Weight coefficent 2",
+    "Ground BRDF Soil WC-Band Weight coefficent 1",
+    "Ground BRDF Soil WC-Band Weight coefficent 2",
+    "Ground BRDF Soil SC-Band Weight coefficent 1",
+    "Ground BRDF Soil SC-Band Weight coefficent 2",
+    "Instrument Dispersion A-Band Offset",
+    "Instrument Dispersion WC-Band Offset",
+    "Instrument Dispersion SC-Band Offset",
+    "Fluorescence Surface Coefficient 1",
+    "Fluorescence Surface Coefficient 2"
+  ],
+  "state_vector_dimension": 49,
+  "non_co2_state_elements": [
+    "H2O Scaling factor",
+    "Surface Pressure (Pascals)",
+    "Temperature Offset (Kelvin)",
+    "Aerosol Shape SO Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape SO Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape SO Logarithmic Gaussian for Coefficient 3",
+    "Aerosol Shape DU Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape DU Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape DU Logarithmic Gaussian for Coefficient 3",
+    "Aerosol Shape Ice Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape Ice Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape Ice Logarithmic Gaussian for Coefficient 3",
+    "Aerosol Shape Water Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape Water Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape Water Logarithmic Gaussian for Coefficient 3",
+    "Aerosol Shape ST Logarithmic Gaussian for Coefficient 1",
+    "Aerosol Shape ST Logarithmic Gaussian for Coefficient 2",
+    "Aerosol Shape ST Logarithmic Gaussian for Coefficient 3",
+    "Ground BRDF Soil A-Band Weight coefficent 1",
+    "Ground BRDF Soil A-Band Weight coefficent 2",
+    "Ground BRDF Soil WC-Band Weight coefficent 1",
+    "Ground BRDF Soil WC-Band Weight coefficent 2",
+    "Ground BRDF Soil SC-Band Weight coefficent 1",
+    "Ground BRDF Soil SC-Band Weight coefficent 2",
+    "Instrument Dispersion A-Band Offset",
+    "Instrument Dispersion WC-Band Offset",
+    "Instrument Dispersion SC-Band Offset",
+    "Fluorescence Surface Coefficient 1",
+    "Fluorescence Surface Coefficient 2"
+  ],
+  "groups": {
+    "FilterVariables": [
+      {
+        "name": "airmass",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "albedo_blended",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "albedo_strong_co2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "albedo_weak_co2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "aod_dust",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "aod_ice",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "aod_sulfate",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "co2_grad_del",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "delta_psfc",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "dof_co2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "log_dws",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "reduced_chi_squared_o2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "reduced_chi_squared_strong_co2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "reduced_chi_squared_weak_co2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "windspeed",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      }
+    ],
+    "RetrievalHeader": [
+      {
+        "name": "sounding_id",
+        "shape": [
+          100
+        ],
+        "dtype": "int64",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      }
+    ],
+    "RetrievalResults": [
+      {
+        "name": "diverging_steps",
+        "shape": [
+          100
+        ],
+        "dtype": "int16",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "iterations",
+        "shape": [
+          100
+        ],
+        "dtype": "int16",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "outcome_flag",
+        "shape": [
+          100
+        ],
+        "dtype": "int16",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "retrieved_state_vector",
+        "shape": [
+          100,
+          49
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "retrieved_state_vector_covariance",
+        "shape": [
+          100,
+          49,
+          49
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "retrieved_xco2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": true,
+        "model_input": false
+      },
+      {
+        "name": "retrieved_xco2_variance",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": true,
+        "model_input": false
+      },
+      {
+        "name": "retrieved_xco2_variance_interf",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "retrieved_xco2_variance_noise",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "retrieved_xco2_variance_smooth",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "state_vector_names",
+        "shape": [
+          49
+        ],
+        "dtype": "object",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "xco2_pressure_weighting_function",
+        "shape": [
+          100,
+          20
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "xco2_quality_flag",
+        "shape": [
+          100
+        ],
+        "dtype": "int16",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      }
+    ],
+    "SpectralParameters": [
+      {
+        "name": "measured_radiance",
+        "shape": [
+          100,
+          3048
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": true,
+        "model_input": true
+      },
+      {
+        "name": "measured_radiance_uncert",
+        "shape": [
+          100,
+          3048
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "modeled_radiance",
+        "shape": [
+          100,
+          3048
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "reduced_chi_squared_o2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "reduced_chi_squared_strong_co2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "reduced_chi_squared_weak_co2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "true_noiseless_radiance",
+        "shape": [
+          100,
+          3048
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "wavelength",
+        "shape": [
+          100,
+          3048
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": true,
+        "model_input": true
+      }
+    ],
+    "StateVector": [
+      {
+        "name": "mixture_component",
+        "shape": [
+          100
+        ],
+        "dtype": "int16",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "true_state_vector",
+        "shape": [
+          100,
+          49
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": false,
+        "model_input": false
+      },
+      {
+        "name": "true_xco2",
+        "shape": [
+          100
+        ],
+        "dtype": "float32",
+        "units": "",
+        "description": "",
+        "retained_by_pipeline": true,
+        "model_input": false
+      }
+    ]
+  },
+  "quality_and_convergence_fields": [
+    "airmass",
+    "albedo_blended",
+    "albedo_strong_co2",
+    "albedo_weak_co2",
+    "aod_dust",
+    "aod_ice",
+    "aod_sulfate",
+    "co2_grad_del",
+    "delta_psfc",
+    "diverging_steps",
+    "dof_co2",
+    "iterations",
+    "log_dws",
+    "outcome_flag",
+    "reduced_chi_squared_o2",
+    "reduced_chi_squared_strong_co2",
+    "reduced_chi_squared_weak_co2",
+    "windspeed",
+    "xco2_quality_flag"
+  ]
+}

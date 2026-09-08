@@ -1,0 +1,102 @@
+# Figure 8's timings: all three tasks, one GPU, one job.
+#
+#     condor_submit benchmark.sub
+#     condor_submit benchmark.sub -a 'device = NVIDIA A100-SXM4-80GB'
+#
+# The architectures changed with the covariate correction, so the published
+# timings are of models that no longer exist and the figure has to be regenerated anyway.
+# The timing table has to state the hardware, batch size, precision, warm-up and repetitions behind it;
+# benchmark.py records all of them in `benchmark_provenance.json` beside the numbers.
+#
+# Cheap: no training, no test-set pass, eight batches per configuration. The Laplace refit
+# on 2,000 soundings is the longest part and is deliberately outside the timed region.
+# Twenty minutes, most of it unpacking data.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+executable = benchmark.sh
+arguments  = scene_prior xco2 profiles last4
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/results/det_xco2_final.tar.gz, \
+                       $(OSDF)/results/nf_xco2_final.tar.gz, \
+                       $(OSDF)/results/det_profiles_final.tar.gz, \
+                       $(OSDF)/results/nf_profiles_final.tar.gz, \
+                       $(OSDF)/results/det_last4_final.tar.gz, \
+                       $(OSDF)/results/nf_last4_final.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = benchmark.tar.gz
+transfer_output_remaps  = "benchmark.tar.gz = $(OSDF)/results/benchmark.tar.gz"
+
+# ---------------------------------------------------------------------------------
+# GPU -- and this is the one job where WHICH GPU is part of the result
+# ---------------------------------------------------------------------------------
+# Every other job in this pipeline takes whatever card matches, because the number it
+# produces does not depend on the card. This one measures the card. Nine rows measured on
+# three different GPUs would be a table comparing hardware, so the model is pinned and
+# `benchmark.py` writes the device name into the provenance file that ships with the
+# numbers.
+#
+# Check what the pool actually has before fixing the string -- the exact DeviceName
+# varies by generation and by how the site registered the slot:
+#
+#     condor_status -compact -constraint 'TotalGpus > 0' -af CUDADeviceName \
+#         | sort | uniq -c | sort -rn
+#
+# If the wait is unacceptable, comment out `require_gpus` and report the device the job
+# actually got: the rows stay internally comparable, because they still all come from one
+# job on one card, and the provenance file says which.
+device = NVIDIA A100-SXM4-80GB
+require_gpus = (DeviceName == "$(device)")
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+# The DataLoader is inside one of the two timed scopes, so the number of workers is part
+# of the measurement and must match what `benchmark.py` records. It reads --num-workers,
+# whose default is 4, and $(CPUS) is 4; if you change one, change the other.
+
+environment = "BATCH_SIZES='1 32 256' BENCH_BATCHES=8 BENCH_WARMUP=1 BENCH_REPEATS=5 BENCH_TF32=off NF_SAMPLES=512"
+
+stream_output = true
+stream_error  = true
+
+log    = logs/benchmark.log
+output = logs/benchmark.out
+error  = logs/benchmark.err
+
+# As everywhere else here: ON_EXIT uploads the archive even on failure, and OSDF then
+# refuses to overwrite it, so a retry is held with a transfer error rather than a useful
+# one. Clean and resubmit.
+#
+#   ./fetch_results.sh --clean benchmark
+#   condor_submit benchmark.sub
+max_retries = 0
+
+queue

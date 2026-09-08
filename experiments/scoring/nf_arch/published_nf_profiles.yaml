@@ -1,0 +1,20 @@
+# Architecture override for the PUBLISHED 20-level flow checkpoint,
+#   experiments/weights/flow_regressor_profiles/best_flow_profiles.pt
+#
+#     python3 experiments/scoring/predict.py --task profiles \
+#         --weights-root experiments/weights \
+#         --nf-arch experiments/scoring/nf_arch/published_nf_profiles.yaml ...
+#
+# Needed because that checkpoint's stored `cfg` records layers/hidden/bins/tail_bound/
+# out_dim/standardize_y but NOT the three spline clamps, and NFProfiles' own defaults are
+# not the values the run used: nf_profiles.yaml sets min_derivative to 0.01, ten times the
+# class default of 1e-3. The clamps change no tensor shape, so a checkpoint rebuilt with
+# the wrong ones loads cleanly with strict=True and returns a log-density that is simply
+# not the trained model's.
+#
+# Values below are nf_profiles.yaml's, i.e. the configuration that run was launched with.
+# The group-split checkpoints do not need this file -- train_nf_profiles.py now records
+# these three keys itself.
+min_bin_width: 0.005
+min_bin_height: 0.005
+min_derivative: 0.01

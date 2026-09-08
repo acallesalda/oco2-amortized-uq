@@ -1,0 +1,53 @@
+{
+  "study": "nf_last4",
+  "covariates": "scene_prior",
+  "metric": "val_nll",
+  "metric_label": "val NLL",
+  "value": 0.5263297966700089,
+  "round": 0,
+  "trial": 3,
+  "trial_epochs": 20,
+  "params": {
+    "model.embed_dim": 384,
+    "model.nhead": 4,
+    "model.nlayers": 3,
+    "nflow.num_layers": 11,
+    "nflow.hidden_features": 674,
+    "nflow.num_bins": 8,
+    "nflow.tail_bound": 5.384521257647496,
+    "optim.lr": 0.0007549290002539634,
+    "optim.weight_decay": 3.7537997200960415e-06,
+    "data.train_batch_size": 128
+  },
+  "overrides": [
+    "data.train_batch_size=128",
+    "model.embed_dim=384",
+    "model.nhead=4",
+    "model.nlayers=3",
+    "nflow.hidden_features=674",
+    "nflow.num_bins=8",
+    "nflow.num_layers=11",
+    "nflow.tail_bound=5.384521258",
+    "optim.lr=0.0007549290003",
+    "optim.weight_decay=3.75379972e-06"
+  ],
+  "n_trials": 25,
+  "n_completed": 25,
+  "n_failed": 0,
+  "selected_utc": "2026-08-20T21:48:49Z",
+  "baseline_value": 0.7412914938809877,
+  "baseline_overrides": [
+    "data.train_batch_size=128",
+    "model.embed_dim=320",
+    "model.nhead=4",
+    "model.nlayers=2",
+    "nflow.hidden_features=597",
+    "nflow.num_bins=8",
+    "nflow.num_layers=11",
+    "nflow.tail_bound=5.059520666",
+    "optim.lr=0.0002093484671",
+    "optim.weight_decay=1.759837374e-06"
+  ],
+  "improvement_abs": 0.2149616972109788,
+  "search_beat_baseline": true
+}

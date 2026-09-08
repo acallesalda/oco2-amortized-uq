@@ -1,0 +1,107 @@
+# The moment-matched Gaussian control, on the search winners, on the test partition.
+#
+# Same job as chtc/bo/eval.sub -- same checkpoints, same split, same seed -- with one
+# addition: predict.py streams $(samples) flow samples per sounding and reduces them online
+# into the mean, covariance, PIT, skewness and kurtosis of the flow's own predictive, plus
+# the NLL of the truth under the Gaussian those first two moments define, recorded at a
+# doubling schedule of sample budgets. The samples are never stored, so $(samples) can be
+# far larger than the 512 the artifact keeps and the archive stays the same size.
+#
+# Do not submit this by hand:
+#
+#     ./chtc/gauss_submit.sh              # all four tasks
+#     ./chtc/gauss_submit.sh profiles     # one
+#
+# gauss_submit.sh reads chtc/bo_studies.sh for the two study names, which is the same table
+# that trained the checkpoints. Typing det_study/flow_study here instead would be a fourth
+# copy of it, and a mismatched pair does not fail -- it scores a different model.
+#
+# The Laplace and ACOS rows this job writes must reproduce the ones in eval_$(task)_bo:
+# nothing upstream of the flow changed, and the Laplace fit is seeded. If they move, the
+# control is not what moved, and the run is not to be trusted.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+# Distinct from the `bo` tag on purpose: this writes
+# experiments/scoring/results/group_split_v1/$(task)_gauss.npz beside the published
+# $(task)_bo.npz rather than over it. Two artifacts of one task at one path is the failure
+# mode bo_final_dir() exists to prevent.
+tag = gauss
+
+# Defaults, so that a hand submit that forgot one of the -a flags runs the same experiment
+# rather than a subtly different one. gauss_submit.sh overrides all three; `covariates`
+# must stay in step with BO_COVARIATES_DEFAULT in bo_studies.sh, which is what the
+# checkpoints were trained with.
+covariates = scene_prior
+samples    = 8192
+chunk      = 1024
+
+executable = bo_eval.sh
+arguments  = $(task) $(covariates) $(tag)
+
+# The two knobs the wrapper sets. `samples` is the streamed budget; `chunk` is how many are
+# drawn per call, and it matters: the context/backbone forward is recomputed once per
+# chunk, so a small chunk pays for the encoder over and over.
+environment = "GAUSSIANIZE=$(samples) GAUSSIANIZE_CHUNK=$(chunk) GAUSSIANIZE_FIRST=512"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/results/$(det_study)_final.tar.gz, \
+                       $(OSDF)/results/$(flow_study)_final.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task)_$(tag).tar.gz
+transfer_output_remaps  = "eval_$(task)_$(tag).tar.gz = $(OSDF)/results/eval_$(task)_$(tag).tar.gz"
+
+# ---------------------------------------------------------------------------------
+# GPU
+# ---------------------------------------------------------------------------------
+# The Laplace refit and the test pass are what eval.sub already pays for; the streaming
+# draw adds $(samples)/512 times its sampling cost. At 8192 that is roughly two to three
+# hours in total, which is still inside "short" -- and short jobs match many more slots
+# than long ones, which is worth more than the headroom. If a task times out, halve
+# `samples` in gauss_submit.sh rather than switching to "long": the 1/S extrapolation is
+# what makes the number reportable, not the size of the largest stage.
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task)_$(tag).log
+output = logs/eval_$(task)_$(tag).out
+error  = logs/eval_$(task)_$(tag).err
+
+# max_retries = 0, deliberately. ON_EXIT transfers the archive even when the job exits
+# nonzero, and OSDF then refuses to overwrite it on the retry -- the held job reports a
+# transfer error that says nothing about the real failure. Clean and resubmit:
+#
+#   ./fetch_results.sh --clean eval_$(task)_$(tag)
+#   ./gauss_submit.sh $(task)
+max_retries = 0
+
+queue

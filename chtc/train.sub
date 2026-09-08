@@ -1,0 +1,97 @@
+# Train one model that has no warm-start dependency.
+#
+# Used by oco2.dag for det_xco2, det_profiles, det_last4 and nf_xco2, which all run
+# concurrently once prep is done. To run one by hand:
+#
+#     condor_submit train.sub -a 'job_name = det_xco2' -a 'gpu_length = medium'
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe        = container
+container_image = $(SIF)
+
+# Maps the HTCondor scratch directory to /workspace/project inside the container, which
+# is the layout every config in this project hardcodes. job_common.sh rewrites the paths
+# anyway if this does not take effect, so an HTCondor too old to know this command (it
+# would silently treat the line as a macro definition) costs nothing.
+container_target_dir = /workspace/project
+
+executable = train.sh
+arguments  = $(job_name)
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = $(job_name).tar.gz
+transfer_output_remaps  = "$(job_name).tar.gz = $(OSDF)/results/$(job_name).tar.gz"
+
+# ---------------------------------------------------------------------------------
+# GPU
+# ---------------------------------------------------------------------------------
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "$(gpu_length)"
+
+# The capability window is tied to the torch version in requirements.txt; it and the
+# reasoning behind it live in gpu_constraints.conf, not here, so that raising torch is one
+# edit rather than five.
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+# ---------------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------------
+# The dataset is 43k individual .npy files read one per __getitem__, so the DataLoader
+# workers are doing real filesystem work; give them cores.
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+# Send stdout/stderr back as they are written, not at job end.
+#
+# By default HTCondor buffers a job's output on the execute node and transfers it only on
+# completion, so `tail -f logs/<node>.out` shows nothing for the entire run -- which on a
+# 40-epoch job is hours of not knowing whether it is progressing or wedged. `condor_tail`
+# works without this, but only while the job is alive and only one job at a time.
+#
+# The cost is a trickle of network writes. These jobs emit one line per epoch, so it is
+# nothing; do not copy this to a job that prints per-batch.
+#
+# Pairs with PYTHONUNBUFFERED=1 in job_common.sh: streaming a block-buffered stream would
+# still arrive in 8 KB lumps.
+stream_output = true
+stream_error  = true
+
+log    = logs/$(job_name).log
+output = logs/$(job_name).out
+error  = logs/$(job_name).err
+
+# Only one retry. Eviction and preemption are requeued by HTCondor automatically and do
+# not count here; a nonzero exit is nearly always a real bug, and retrying a crash that
+# happened at epoch 30 just burns another GPU-hour to reproduce it.
+# max_retries = 0, deliberately.
+#
+# ON_EXIT transfers the output archive even when the job exits nonzero, so a failed
+# attempt still uploads <name>.tar.gz to /staging. OSDF then refuses to overwrite it:
+#
+#   Pelican Client Error: remote object already exists, upload aborted
+#
+# and the retry is HELD with a transfer error that says nothing about why the job failed
+# in the first place. A retry here cannot succeed. Clean and resubmit instead:
+#
+#   ./fetch_results.sh --clean $(job_name)
+#   condor_submit train.sub
+max_retries = 0
+
+queue

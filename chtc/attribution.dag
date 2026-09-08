@@ -1,0 +1,46 @@
+# Spectral attribution: which wavelengths each retrieval reads.
+#
+#     cd chtc && mkdir -p logs && condor_submit_dag attribution.dag
+#     ./fetch_results.sh --clean attr_xco2_attr attr_last4_attr attr_profiles_attr
+#
+# WHAT THIS ANSWERS
+# -----------------
+# Where the retrieval reads the spectrum. The objection this answers is precise and correct: the Laplace
+# approximation and the normalizing flow describe the predictive distribution and say
+# nothing about which features of the network allow XCO2 to be retrieved from the spectra.
+# This asks that question in the basis where the physics can check the answer. Occluding a
+# window of channels -- replacing its radiance with the training mean spectrum, so the
+# input stays on distribution -- and re-scoring gives an importance per wavelength; the
+# rank correlation of that importance with the mean absorption depth of the same window
+# (which is recoverable from the mean spectrum alone, without a line list) says whether the
+# sensitivity is concentrated on the absorption features or spread over the continuum.
+#
+# Nothing is trained and nothing is selected. Fixed checkpoints, the held-out partition,
+# forward passes under substitution.
+#
+# The `occlude all three` row of attribution_bands_<task>.csv is the one to read first:
+# it is the fitted model with no spectral information at all, so it is the no-spectrum
+# reference computed inside the model, to be compared with the ridge baseline in
+# experiments/scoring/tables/generalization_baselines.csv (2.223 ppm for xco2).
+#
+# Three short GPU jobs, no parents.
+#
+# Prerequisites, all already in /staging for the published run (./fetch_results.sh --status):
+#   oco2_processed_{train,test}.tar.gz, oco2_profile_stats.tar.gz   stage_data.sh
+#   oco2_split_v1.tar.gz                                            prep.sub
+#   oco2_covariates_v1.tar.gz                                       covariates.sub
+#   results/<study>_final.tar.gz  for the six studies                bo/final.sub
+
+JOB attr_xco2      attribution.sub
+VARS attr_xco2      task="xco2"     det_study="det_xco2"     flow_study="nf_xco2"
+
+JOB attr_last4     attribution.sub
+VARS attr_last4     task="last4"    det_study="det_last4"    flow_study="nf_last4"
+
+JOB attr_profiles  attribution.sub
+VARS attr_profiles  task="profiles" det_study="det_profiles" flow_study="nf_profiles"
+
+# A failed node should not stop the others; RETRY 0 for the reason given in balanced.dag.
+RETRY ALL_NODES 0
+
+NODE_STATUS_FILE attribution.dag.status 30

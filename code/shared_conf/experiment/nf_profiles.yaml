@@ -1,0 +1,46 @@
+# code/shared_conf/experiment/nf_profiles.yaml
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+
+model:
+  # FullRegressorProfiles (context backbone)
+  aux_dim: 32
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+  out_dim: 20
+
+nflow:
+  # Normalizing Flow (coupling) hyperparams
+  layers: 7            
+  hidden: 640          # ckpt hidden width
+  bins: 13             
+  tail_bound: 10.0
+  standardize_y: false
+  min_bin_width: 0.005
+  min_bin_height: 0.005
+  min_derivative: 0.01
+
+optim:
+  lr: 5.0e-4
+  wd: 1.0e-5
+  epochs: 35
+  grad_clip: 1.0
+
+eval:
+  rmse_samples: 0    # MC samples for val RMSE report (0 to disable)
+
+setup:
+  freeze_backbone: false
+  backbone_ckpt: /workspace/project/experiments/weights/full_regressor_profiles/global_best/net_profiles.pt
+
+weights_dir: /workspace/project/experiments/weights/flow_regressor_profiles
+
+bo:
+  enabled: true
+  n_trials: 100
+  study_name: nf_profiles_bo

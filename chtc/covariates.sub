@@ -1,0 +1,57 @@
+# Recover the auxiliary covariates and merge them into the group split table. CPU only.
+#
+#     ./stage_data.sh raw          # once: the 2.2 GB of .h5, if not already there
+#     condor_submit prep.sub       # once: oco2_split_v1.tar.gz
+#     condor_submit covariates.sub
+#
+# ~20 minutes, dominated by reading 479 HDF5 files. Produces oco2_covariates_v1.tar.gz,
+# which every covariate training run and every BO trial transfers in.
+#
+# Sizes itself rather than including job_resources.conf: the raw archive unpacks to 8 GB
+# and the processed .npy to another 3 GB, so the 40 GB scratch of the training jobs is
+# right but the 24 GB of memory is not needed -- the extraction is streamed one file at a
+# time and never holds more than one reference sounding.
+
+include : site.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+executable = covariates.sh
+arguments  =
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_unprocessed_og_data.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+
+transfer_output_files  = oco2_covariates_v1.tar.gz
+transfer_output_remaps = "oco2_covariates_v1.tar.gz = $(OSDF)/oco2_covariates_v1.tar.gz"
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = 2
+request_memory = 16GB
+request_disk   = 60GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/covariates.log
+output = logs/covariates.out
+error  = logs/covariates.err
+
+# ON_EXIT uploads the archive even on failure, and OSDF then refuses to overwrite it, so a
+# retry is held with a transfer error that says nothing about the original failure. Clean
+# and resubmit instead:
+#     ./fetch_results.sh --clean covariates
+max_retries = 0
+
+queue

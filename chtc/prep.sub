@@ -1,0 +1,72 @@
+# Build the reference-sounding-disjoint split and its statistics. CPU only.
+#
+# Root node of oco2.dag. Can also be run on its own:
+#     condor_submit prep.sub
+#
+# ~10 minutes, nearly all of it untarring 43k .npy files.
+
+include : site.conf
+include : job_resources.conf
+
+universe       = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+executable = prep.sh
+arguments  =
+
+# job_common.sh is sourced by prep.sh, so it has to travel with it.
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz
+
+should_transfer_files  = YES
+when_to_transfer_output = ON_EXIT
+
+# One archive, back to /staging where the training jobs will pick it up.
+transfer_output_files  = oco2_split_v1.tar.gz
+transfer_output_remaps = "oco2_split_v1.tar.gz = $(OSDF)/oco2_split_v1.tar.gz"
+
+requirements = $(STAGING_REQ)
+
+# Send stdout/stderr back as they are written, not at job end.
+#
+# By default HTCondor buffers a job's output on the execute node and transfers it only on
+# completion, so `tail -f logs/<node>.out` shows nothing for the entire run -- which on a
+# 40-epoch job is hours of not knowing whether it is progressing or wedged. `condor_tail`
+# works without this, but only while the job is alive and only one job at a time.
+#
+# The cost is a trickle of network writes. These jobs emit one line per epoch, so it is
+# nothing; do not copy this to a job that prints per-batch.
+#
+# Pairs with PYTHONUNBUFFERED=1 in job_common.sh: streaming a block-buffered stream would
+# still arrive in 8 KB lumps.
+stream_output = true
+stream_error  = true
+
+log    = logs/prep.log
+output = logs/prep.out
+error  = logs/prep.err
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+# The split is deterministic given the seed, so a retry is always safe.
+# max_retries = 0, deliberately.
+#
+# ON_EXIT transfers the output archive even when the job exits nonzero, so a failed
+# attempt still uploads <name>.tar.gz to /staging. OSDF then refuses to overwrite it:
+#
+#   Pelican Client Error: remote object already exists, upload aborted
+#
+# and the retry is HELD with a transfer error that says nothing about why the job failed
+# in the first place. A retry here cannot succeed. Clean and resubmit instead:
+#
+#   ./fetch_results.sh --clean prep
+#   condor_submit prep.sub
+max_retries = 0
+
+queue

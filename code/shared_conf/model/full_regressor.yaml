@@ -1,0 +1,5 @@
+_target_: modeling.full_regressor.FullRegressor
+embed_dim: 512
+nhead: 4
+nlayers: 1
+aux_dim:  32

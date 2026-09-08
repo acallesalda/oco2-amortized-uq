@@ -1,0 +1,111 @@
+# Score an ALL-FEBRUARY model on another month. GPU, ~30 minutes per task.
+#
+#     condor_submit eval_month_full.sub -a 'task = xco2'     -a 'month = 202003' \
+#                                       -a 'det_study = det_xco2' -a 'flow_study = nf_xco2'
+#     ... and the same for profiles/last4 and for 202007
+#     ./fetch_results.sh --months-full
+#
+# Normally run from months_full.dag, which declares the study pairs where they cannot be
+# got wrong.
+#
+# Eight jobs, no training. The checkpoints are the searched winners retrained on 406 of
+# February's reference soundings (train_full.sub); the test partition is every sounding of
+# another month; the statistics are full_feb_v1's, estimated from those same 406. This is
+# the definitive temporal hold-out -- definitive because with March and July as
+# the test set, February's own test partition is only scenes the model could have learned
+# from.
+#
+# The month table carries February's 45 validation scenes, so the Laplace's aleatoric
+# diagonal is calibrated out of sample here exactly as it is for the group split.
+#
+# Depends on prep_month_full.sub having produced oco2_month_$(month)_full.tar.gz, and on
+# the six retrained models being in /staging (./fetch_results.sh --status will say).
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+# The covariate preset must equal the one the checkpoints were trained with. It is spelled
+# out rather than read from bo_studies.sh because eval_month.sh takes it as an argument and
+# a submit file that quietly disagreed with the table would score a model against inputs it
+# never saw -- and load cleanly while doing it.
+covariates = scene_prior
+
+# The month archive, as a macro so it can be re-versioned without editing this file.
+#
+# OSDF/Pelican caches by URL and assumes objects are IMMUTABLE. Deleting a /staging object
+# and writing a different file to the same path does not invalidate the cache: execute
+# nodes keep getting the old bytes, and Pelican either refuses the transfer
+# ("checksum mismatch for md5") or -- worse, and this happened on 2026-08-26 -- hands over
+# a stale 512-byte stub that tar then dies on with "Unexpected EOF in archive", while
+# `gzip -t` at the origin says the file is fine.
+#
+# So if a month archive is ever rebuilt, do NOT reuse its name. Copy it to a fresh one and
+# point this at it:
+#
+#     cp $S/oco2_month_202007_full.tar.gz $S/oco2_month_202007_full_r2.tar.gz
+#     condor_submit eval_month_full.sub -a 'task = profiles' -a 'month = 202007' \
+#         -a 'month_tar = oco2_month_202007_full_r2.tar.gz' \
+#         -a 'det_study = det_profiles' -a 'flow_study = nf_profiles'
+#
+# A URL that has never been requested cannot have a stale cache entry.
+month_tar = oco2_month_$(month)_full.tar.gz
+
+executable = eval_month.sh
+arguments  = $(task) $(month) $(covariates) $(month)_full
+environment = "OCO2_SPLIT=full_feb_v1 OCO2_MONTH_TAR=$(month_tar)"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_full_feb_v1.tar.gz, \
+                       $(OSDF)/$(month_tar), \
+                       $(OSDF)/results/$(det_study)_final_full.tar.gz, \
+                       $(OSDF)/results/$(flow_study)_final_full.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task)_$(month)_full.tar.gz
+transfer_output_remaps  = "eval_$(task)_$(month)_full.tar.gz = $(OSDF)/results/eval_$(task)_$(month)_full.tar.gz"
+
+# ---------------------------------------------------------------------------------
+# GPU
+# ---------------------------------------------------------------------------------
+# Ten times the test soundings of a February eval (45,000 against 4,489), so ten times the
+# flow sampling: the 512 draws per sounding are the cost here. Still inside "short" for the
+# scalar task; "medium" is the safe choice for the 20-level one, where each draw is a
+# 20-dimensional inverse pass.
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "medium"
+
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+# Overrides job_resources.conf: the month archive unpacks to ~1.5 GB of spectra and
+# the 20-level artifact is ~2 GB of stored samples at 45,000 soundings.
+DISK_GB = 32
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task)_$(month)_full.log
+output = logs/eval_$(task)_$(month)_full.out
+error  = logs/eval_$(task)_$(month)_full.err
+
+max_retries = 0
+
+queue

@@ -1,0 +1,53 @@
+# config_profiles_last4.yaml
+
+defaults:
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+  - _self_
+
+data:
+  files: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+
+model:
+  _target_: modeling.full_regressor_profiles.FullRegressorProfiles
+  aux_dim: 32
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+  out_dim: 4
+
+target_indices: last4
+
+hyps:
+  epochs: 40
+  lr: 3.0e-4
+  wd: 3.0e-4
+  seed: 42
+
+weights_dir: /workspace/project/experiments/weights/full_regressor_profiles_last4_bo
+
+hydra:
+  mode: MULTIRUN
+  run:
+    dir: /workspace/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: /workspace/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  sweeper:
+    sampler:
+      seed: 123
+    direction: minimize
+    study_name: full_profiles_last4_bo_loop
+    storage: null
+    n_trials: 100
+    n_jobs: 1
+    params:
+      hyps.lr: tag(log, interval(1e-4, 3e-3))
+      hyps.wd: tag(log, interval(1e-6, 1e-3))
+      model.embed_dim: choice(128,256,384,512)
+      model.nlayers: choice(1,2,3)
+      model.nhead: choice(4,8)

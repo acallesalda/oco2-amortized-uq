@@ -1,0 +1,83 @@
+# Score a February-trained model on another month. GPU, ~30 minutes per task.
+#
+#     condor_submit eval_month.sub -a 'task = xco2'     -a 'month = 202003'
+#     condor_submit eval_month.sub -a 'task = profiles' -a 'month = 202003'
+#     condor_submit eval_month.sub -a 'task = last4'    -a 'month = 202003'
+#     ... and the same three for 202007
+#     ./fetch_results.sh --months
+#
+# Six jobs, no training. The checkpoints are the search winners from February's
+# reference-sounding-disjoint split; the test partition is every sounding of another month;
+# the statistics are February's. This is the temporal hold-out.
+#
+# Depends on prep_month.sub having produced oco2_month_$(month).tar.gz, and on the six
+# retrained winners being in /staging (they are: ./fetch_results.sh --best).
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+# The covariate preset must equal the one the checkpoints were trained with. It is spelled
+# out rather than read from bo_studies.sh because eval_month.sh takes it as an argument and
+# a submit file that quietly disagreed with the table would score a model against inputs it
+# never saw -- and load cleanly while doing it.
+covariates = scene_prior
+
+executable = eval_month.sh
+arguments  = $(task) $(month) $(covariates) $(month)
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/oco2_month_$(month).tar.gz, \
+                       $(OSDF)/results/$(det_study)_final.tar.gz, \
+                       $(OSDF)/results/$(flow_study)_final.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task)_$(month).tar.gz
+transfer_output_remaps  = "eval_$(task)_$(month).tar.gz = $(OSDF)/results/eval_$(task)_$(month).tar.gz"
+
+# ---------------------------------------------------------------------------------
+# GPU
+# ---------------------------------------------------------------------------------
+# Ten times the test soundings of a February eval (45,000 against 4,489), so ten times the
+# flow sampling: the 512 draws per sounding are the cost here. Still inside "short" for the
+# scalar task; "medium" is the safe choice for the 20-level one, where each draw is a
+# 20-dimensional inverse pass.
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "medium"
+
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+# Overrides job_resources.conf: the month archive unpacks to ~1.5 GB of spectra and
+# the 20-level artifact is ~2 GB of stored samples at 45,000 soundings.
+DISK_GB = 32
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task)_$(month).log
+output = logs/eval_$(task)_$(month).out
+error  = logs/eval_$(task)_$(month).err
+
+max_retries = 0
+
+queue

@@ -1,0 +1,69 @@
+# Score one task on one whole month, from the models retrained on the EXTENSION split.
+#
+#     condor_submit eval_month_ext.sub -a 'task=xco2' -a 'month=202003' \
+#         -a 'det_study=det_xco2' -a 'flow_study=nf_xco2'     # normally via ext.dag
+#
+# The temporal half of the question. February's test partition says whether the extra
+# reference soundings help on scenes drawn from the same month; March and July say whether
+# they help on scenes drawn from a different one -- and those are the two evaluations the
+# near-surface task currently loses by the widest margin (ACOS 11.63 and 14.18 ppm against
+# the flow's 15.06 and 16.43).
+#
+# ACOS L2FP is the control here too, and a stronger one than on February: it does not
+# train, so its month row measures how hard the month is. It must come out identical to
+# months_full.dag's, because the same soundings are being scored.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+covariates = scene_prior
+month_tar  = oco2_month_$(month)_extcap.tar.gz
+
+executable = eval_month.sh
+arguments  = $(task) $(month) $(covariates) $(month)_extcap
+environment = "OCO2_SPLIT=ext_cap_v1 OCO2_MONTH_TAR=$(month_tar)"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_ext_cap_v1.tar.gz, \
+                       $(OSDF)/$(month_tar), \
+                       $(OSDF)/results/$(det_study)_final_extcap.tar.gz, \
+                       $(OSDF)/results/$(flow_study)_final_extcap.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task)_$(month)_extcap.tar.gz
+transfer_output_remaps  = "eval_$(task)_$(month)_extcap.tar.gz = $(OSDF)/results/eval_$(task)_$(month)_extcap.tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "medium"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+DISK_GB = 60
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task)_$(month)_extcap.log
+output = logs/eval_$(task)_$(month)_extcap.out
+error  = logs/eval_$(task)_$(month)_extcap.err
+
+max_retries = 0
+queue

@@ -1,0 +1,12 @@
+# These files are read by Linux. A CRLF that Git helpfully inserted on a Windows checkout
+# turns `#!/bin/bash` into `#!/bin/bash\r`, and the execute node reports
+# "bad interpreter: No such file or directory" -- which is a confusing hour to spend.
+# Force LF regardless of core.autocrlf.
+*.sh   text eol=lf
+*.sub  text eol=lf
+*.dag  text eol=lf
+*.def  text eol=lf
+*.conf text eol=lf
+# requirements.txt is read by pip inside the container; a trailing \r would end up
+# glued to the --extra-index-url and the cu121 wheels would not resolve.
+*.txt  text eol=lf

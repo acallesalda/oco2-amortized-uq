@@ -1,0 +1,39 @@
+# Reference-sounding-disjoint split, with the recovered covariates merged in.
+#
+# Identical to local_simulated_grouped.yaml except that split_csv points at the augmented
+# annotations table. Build it with:
+#   python3 experiments/pipelines/extract_covariates.py --raw-root <og_data> --out <cov.csv.gz>
+#   python3 experiments/pipelines/augment_split.py --split-csv <group_split_v1.csv> \
+#       --covariates <cov.csv.gz> --out <group_split_v1_cov.csv> --stats-dir <stats>/group_split_v1
+#
+# The split assignment itself is untouched -- the same 383/48/48 reference soundings, in
+# the same partitions -- so a covariate run and the baseline differ only in what the
+# network is allowed to see.
+#
+# stats_dir is shared with local_simulated_grouped: augment_split.py writes
+# covariate_stats.json alongside the existing profile_mu/profile_sigma/xco2_stats.
+root: /workspace/data/oco2/simulated
+out_root: /workspace/project/scratch/simulated
+
+soundings: ${data.root}/og_data
+tree: ${data.root}/tree
+
+clean_tree: ${data.out_root}/tree/clean_oco2
+files: ${data.out_root}/files
+annotations: "aux_data.csv"
+weight_path: ${data.out_root}/weights
+
+split_csv: ${data.files}/splits/group_split_v1_cov.csv
+stats_dir: /workspace/project/experiments/pipelines/stats/group_split_v1
+
+seed: 42
+train_batch_size: 512
+val_batch_size: 4096
+
+# Cluster-balanced sampling. Declared here (rather than only on the command line) because
+# Hydra composes in struct mode: an override of a key that no config declares is a hard
+# error, and `data.balance_by=clst` therefore killed every deterministic trainer in the
+# first balanced run before a single epoch. null = off, i.e. published behaviour.
+# alpha tempers it: 0 = off, 1 = full inverse frequency, 0.5 = square root.
+balance_by: null
+balance_alpha: 0.5

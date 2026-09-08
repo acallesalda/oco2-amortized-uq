@@ -1,0 +1,16 @@
+# Flow head (nflows) on top of FullRegressor encoder
+full_backbone:
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+  aux_dim: 32
+
+flow:
+  T: 6          # number of RQS layers
+  K: 13          # spline bins
+  hidden: 256   # conditioner MLP width
+  x_min: -10.0
+  x_max:  10.0
+  standardize_y: false
+  y_mu: 0.0     # <- your scalar stats
+  y_sigma: 1.0

@@ -1,0 +1,83 @@
+# Turn one raw simulation month into spectra, covariates and a split table, against the
+# ALL-FEBRUARY partition. CPU only.
+#
+#     # once per month: the raw archive must already be in /staging, uploaded from the
+#     # machine that has it -- it is not a Zenodo item and *.zip is gitignored, so no
+#     # pull puts it on CHTC. Destination:
+#     #   /staging/<first letter of netid>/<netid>/oco2/OCO2SimUQExpt_<month>.zip
+#     # Exact name, flat in that directory; this file transfers it by that path.
+#     # See docs/hpc.md, "the temporal hold-out".
+#
+#     condor_submit prep_month_full.sub -a 'month = 202003'
+#     condor_submit prep_month_full.sub -a 'month = 202007'
+#
+# The twin of prep_month.sub, differing in one thing: OCO2_SPLIT. It appends the month to
+# full_feb_v1's train/val rows rather than group_split_v1's, so the table's training
+# partition is the 406 reference soundings the models in train_full.sub were actually
+# fitted on -- which is what the Laplace refit at scoring time reads, and its 45 validation
+# scenes are what the Laplace's aleatoric diagonal is calibrated on. Everything else,
+# including the extracted spectra, is identical; prep_month.sh derives the archive name
+# and the table name from the split so the two cannot collide on /staging.
+#
+# ~40 minutes: one pass over ~450 HDF5 files for the spectra and targets, a second for the
+# covariates. The output archive is ~900 MB (45,000 spectra plus their ACOS covariances),
+# which is why it goes to /staging rather than home.
+#
+# Read two lines of the output before using the result:
+#   "channel count matches February (2298)"   -- prepare_month.py; a mismatch stops the job
+#   "corrected (sorted_ref) feasible for ..." -- extract_covariates.py; must be 100%, as it
+#                                                is for February. Anything less means the
+#                                                metadata pairing is wrong for this month
+#                                                and the covariates are scrambled.
+
+include : site.conf
+include : job_resources.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+executable = prep_month.sh
+arguments  = $(month)
+environment = "OCO2_SPLIT=full_feb_v1"
+
+# One split archive, not two: full_feb_v1's augmented table and its covariate statistics
+# travel with its split table, because extract_covariates.py is split-independent and
+# covariates.sub has already run. prep_full_feb.sub builds it.
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_full_feb_v1.tar.gz, \
+                       $(OSDF)/OCO2SimUQExpt_$(month).zip
+
+should_transfer_files  = YES
+when_to_transfer_output = ON_EXIT
+
+transfer_output_files  = oco2_month_$(month)_full.tar.gz
+transfer_output_remaps = "oco2_month_$(month)_full.tar.gz = $(OSDF)/oco2_month_$(month)_full.tar.gz"
+
+requirements = $(STAGING_REQ)
+
+stream_output = true
+stream_error  = true
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+# Overrides job_resources.conf: the raw zip is 2.1 GB, unpacks to ~3 GB, and the
+# output archive is another ~900 MB. The shared default is sized for a February job.
+DISK_GB = 24
+request_disk   = $(DISK_GB)GB
+
+log    = logs/prep_month_$(month)_full.log
+output = logs/prep_month_$(month)_full.out
+error  = logs/prep_month_$(month)_full.err
+
+# max_retries = 0, deliberately: ON_EXIT uploads the archive even on failure and OSDF then
+# refuses to overwrite it, so the retry is held with a transfer error that hides the real
+# one. Clean and resubmit:
+#   ./fetch_results.sh --clean oco2_month_$(month)_full
+max_retries = 0
+
+queue

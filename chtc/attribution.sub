@@ -1,0 +1,81 @@
+# Spectral attribution for one task: which wavelengths the retrieval reads.
+#
+#     condor_submit attribution.sub -a 'task = xco2'
+#
+# and for all three tasks:  condor_submit_dag attribution.dag
+#
+# Why it exists
+# -------------
+# What features of the network allow retrieval of XCO2 from the spectra, and
+# observes -- correctly -- that the Laplace approximation and the normalizing flow answer a
+# different question. This job answers the one that was asked, in the input basis: it
+# replaces the radiance of one band, or of a sliding window of channels, with the training
+# mean spectrum and re-scores the fixed checkpoints. Nothing is fitted, nothing is
+# selected, and no predictive artifact is written -- only tables and one figure.
+#
+# One configuration matters more than the rest: with all three bands replaced the model is
+# reduced to its auxiliary covariates, which makes its RMSE the no-spectrum reference
+# computed inside the fitted model. It should land near the ridge baseline of
+# experiments/scoring/generalization_diagnostics.py; if it lands far below, the covariates
+# carry more than that baseline could extract, and if far above, the substitution is
+# further off-distribution than intended and the window curve should be read with care.
+#
+# Cost. The scored partition is cached on the GPU once (about 110 MB), so the sweep is
+# forward passes and nothing else: at --window 32 there are 27 + 21 + 26 = 74 windows, each
+# one pass of the deterministic model and one flow log-density over 4,489 soundings. Short
+# job; ATTR_SKIP_SWEEP=1 reduces it to five.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+tag = attr
+
+executable = attribution.sh
+arguments  = $(task) scene_prior $(tag)
+environment = "OCO2_SPLIT=group_split_v1 ATTR_WINDOW=32 ATTR_NF_SAMPLES=256"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/results/$(det_study)_final.tar.gz, \
+                       $(OSDF)/results/$(flow_study)_final.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = attr_$(task)_$(tag).tar.gz
+transfer_output_remaps  = "attr_$(task)_$(tag).tar.gz = $(OSDF)/results/attr_$(task)_$(tag).tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/attr_$(task)_$(tag).log
+output = logs/attr_$(task)_$(tag).out
+error  = logs/attr_$(task)_$(tag).err
+
+# max_retries = 0, deliberately -- see train.sub.
+#   ./fetch_results.sh --clean attr_$(task)_$(tag)
+max_retries = 0
+queue

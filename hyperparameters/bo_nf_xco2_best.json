@@ -1,0 +1,53 @@
+{
+  "study": "nf_xco2",
+  "covariates": "scene_prior",
+  "metric": "val_nll",
+  "metric_label": "val NLL",
+  "value": 0.7289217347822635,
+  "round": 2,
+  "trial": 3,
+  "trial_epochs": 20,
+  "params": {
+    "model_cfg_obj.full_backbone.embed_dim": 512,
+    "model_cfg_obj.full_backbone.nhead": 4,
+    "model_cfg_obj.full_backbone.nlayers": 3,
+    "model_cfg_obj.nflow.layers": 10,
+    "model_cfg_obj.nflow.hidden": 744,
+    "model_cfg_obj.nflow.bins": 7,
+    "model_cfg_obj.nflow.tail_bound": 6.519067742410712,
+    "optim.lr": 0.0004028491601001154,
+    "optim.wd": 1.030781410057409e-06,
+    "data.train_batch_size": 128
+  },
+  "overrides": [
+    "data.train_batch_size=128",
+    "model_cfg_obj.full_backbone.embed_dim=512",
+    "model_cfg_obj.full_backbone.nhead=4",
+    "model_cfg_obj.full_backbone.nlayers=3",
+    "model_cfg_obj.nflow.bins=7",
+    "model_cfg_obj.nflow.hidden=744",
+    "model_cfg_obj.nflow.layers=10",
+    "model_cfg_obj.nflow.tail_bound=6.519067742",
+    "optim.lr=0.0004028491601",
+    "optim.wd=1.03078141e-06"
+  ],
+  "n_trials": 25,
+  "n_completed": 25,
+  "n_failed": 0,
+  "selected_utc": "2026-08-20T22:22:23Z",
+  "baseline_value": 0.7460253850388898,
+  "baseline_overrides": [
+    "data.train_batch_size=128",
+    "model_cfg_obj.full_backbone.embed_dim=256",
+    "model_cfg_obj.full_backbone.nhead=8",
+    "model_cfg_obj.full_backbone.nlayers=1",
+    "model_cfg_obj.nflow.bins=9",
+    "model_cfg_obj.nflow.hidden=384",
+    "model_cfg_obj.nflow.layers=5",
+    "model_cfg_obj.nflow.tail_bound=6.310891964",
+    "optim.lr=0.0004533555957",
+    "optim.wd=0.0005387680934"
+  ],
+  "improvement_abs": 0.0171036502566263,
+  "search_beat_baseline": true
+}

@@ -1,0 +1,46 @@
+# The ORIGINAL replicate-level split, with the recovered covariates merged in.
+#
+# GENERATED TWIN of code/shared_conf/data/local_simulated_grouped_cov.yaml, differing only
+# in split_csv and stats_dir. Build the two files it points at with:
+#
+#   python3 experiments/pipelines/make_replicate_split.py --out <replicate_split_v1.csv>
+#   python3 experiments/pipelines/compute_split_stats.py --split-csv <replicate_split_v1.csv> \
+#       --out-dir <stats>/replicate_split_v1 --split train
+#   python3 experiments/pipelines/augment_split.py --split-csv <replicate_split_v1.csv> \
+#       --covariates <covariates_v1.csv.gz> --out <replicate_split_v1_cov.csv> \
+#       --stats-dir <stats>/replicate_split_v1
+#
+# or, on the cluster, `condor_submit prep_replicate.sub`, which does all three.
+#
+# Every reference sounding appears in all three partitions here, on purpose: this is the
+# within-reference interpolation experiment. The covariate encodings and the target
+# standardization are still estimated from this table's training rows alone -- which under
+# this split is not a leakage question, since every reference sounding is in training
+# anyway, but keeping the same rule for both splits removes one more difference between
+# them.
+
+root: /workspace/data/oco2/simulated
+out_root: /workspace/project/scratch/simulated
+
+soundings: ${data.root}/og_data
+tree: ${data.root}/tree
+
+clean_tree: ${data.out_root}/tree/clean_oco2
+files: ${data.out_root}/files
+annotations: "aux_data.csv"
+weight_path: ${data.out_root}/weights
+
+split_csv: ${data.files}/splits/replicate_split_v1_cov.csv
+stats_dir: /workspace/project/experiments/pipelines/stats/replicate_split_v1
+
+seed: 42
+train_batch_size: 512
+val_batch_size: 4096
+
+# Cluster-balanced sampling. Declared here (rather than only on the command line) because
+# Hydra composes in struct mode: an override of a key that no config declares is a hard
+# error, and `data.balance_by=clst` therefore killed every deterministic trainer in the
+# first balanced run before a single epoch. null = off, i.e. published behaviour.
+# alpha tempers it: 0 = off, 1 = full inverse frequency, 0.5 = square root.
+balance_by: null
+balance_alpha: 0.5

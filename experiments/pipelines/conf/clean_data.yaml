@@ -1,0 +1,71 @@
+defaults:
+  - data: local_simulated
+  - _self_
+
+
+spectra_vars:
+  - "wavelength"
+  - "measured_radiance"
+
+
+target_vars:
+  - "true_xco2"
+  - "retrieved_xco2"
+  - "retrieved_xco2_variance"
+  - "retrieved_state_vector_01"
+  - "retrieved_state_vector_02"
+  - "retrieved_state_vector_03"
+  - "retrieved_state_vector_04"
+  - "retrieved_state_vector_05"
+  - "retrieved_state_vector_06"
+  - "retrieved_state_vector_07"
+  - "retrieved_state_vector_08"
+  - "retrieved_state_vector_09"
+  - "retrieved_state_vector_10"
+  - "retrieved_state_vector_11"
+  - "retrieved_state_vector_12"
+  - "retrieved_state_vector_13"
+  - "retrieved_state_vector_14"
+  - "retrieved_state_vector_15"
+  - "retrieved_state_vector_16"
+  - "retrieved_state_vector_17"
+  - "retrieved_state_vector_18"
+  - "retrieved_state_vector_19"
+  - "retrieved_state_vector_20"
+  - "true_state_vector_01"
+  - "true_state_vector_02"
+  - "true_state_vector_03"
+  - "true_state_vector_04"
+  - "true_state_vector_05"
+  - "true_state_vector_06"
+  - "true_state_vector_07"
+  - "true_state_vector_08"
+  - "true_state_vector_09"
+  - "true_state_vector_10"
+  - "true_state_vector_11"
+  - "true_state_vector_12"
+  - "true_state_vector_13"
+  - "true_state_vector_14"
+  - "true_state_vector_15"
+  - "true_state_vector_16"
+  - "true_state_vector_17"
+  - "true_state_vector_18"
+  - "true_state_vector_19"
+  - "true_state_vector_20"
+  - "retrieved_co2_profile_covariance"
+
+
+aux_vars:
+  - "Footprint"
+  - "SlrZen"
+  - "AerType1"
+  - "AerType2"
+  # Diagnostics only -- carried into aux_data.csv so that residuals can be examined
+  # against geography, and NEVER read by the data loaders or fed to any model. The
+  # model inputs are exactly the four variables above (see spectral_dataset.load_aux).
+  - "Longitude"
+  - "Latitude"
+
+hydra:
+  searchpath:
+    - pkg://shared_conf

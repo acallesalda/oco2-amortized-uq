@@ -1,0 +1,16 @@
+det_last4,t00,hyps.lr=0.000195 hyps.wd=0.000476 hyps.embed_dim=320 hyps.nhead=4 hyps.nlayers=2
+det_last4,t01,hyps.lr=0.000172526 hyps.wd=0.000132713 hyps.embed_dim=256 hyps.nhead=4 hyps.nlayers=3
+det_last4,t02,hyps.lr=0.00023671 hyps.wd=7.69548e-05 hyps.embed_dim=320 hyps.nhead=4 hyps.nlayers=2
+det_last4,t03,hyps.lr=9.98377e-05 hyps.wd=5.15408e-06 hyps.embed_dim=384 hyps.nhead=4 hyps.nlayers=1
+det_last4,t04,hyps.lr=0.000128324 hyps.wd=1.54691e-05 hyps.embed_dim=192 hyps.nhead=8 hyps.nlayers=1
+det_last4,t05,hyps.lr=0.000298184 hyps.wd=0.00046996 hyps.embed_dim=384 hyps.nhead=8 hyps.nlayers=3
+det_last4,t06,hyps.lr=0.000271035 hyps.wd=0.000474993 hyps.embed_dim=256 hyps.nhead=8 hyps.nlayers=2
+det_last4,t07,hyps.lr=0.000399564 hyps.wd=2.63795e-05 hyps.embed_dim=192 hyps.nhead=8 hyps.nlayers=2
+det_last4,t08,hyps.lr=0.00289114 hyps.wd=1.56235e-06 hyps.embed_dim=256 hyps.nhead=4 hyps.nlayers=3
+det_last4,t09,hyps.lr=0.00058861 hyps.wd=4.3578e-05 hyps.embed_dim=256 hyps.nhead=8 hyps.nlayers=1
+det_last4,t10,hyps.lr=0.000705776 hyps.wd=0.000924228 hyps.embed_dim=256 hyps.nhead=4 hyps.nlayers=1
+det_last4,t11,hyps.lr=0.000780506 hyps.wd=7.46357e-06 hyps.embed_dim=320 hyps.nhead=4 hyps.nlayers=3
+det_last4,t12,hyps.lr=0.00254474 hyps.wd=3.00235e-05 hyps.embed_dim=192 hyps.nhead=8 hyps.nlayers=1
+det_last4,t13,hyps.lr=0.000878509 hyps.wd=2.50891e-05 hyps.embed_dim=256 hyps.nhead=4 hyps.nlayers=1
+det_last4,t14,hyps.lr=0.000654852 hyps.wd=0.000245974 hyps.embed_dim=256 hyps.nhead=4 hyps.nlayers=1
+det_last4,t15,hyps.lr=7.21168e-05 hyps.wd=4.33212e-06 hyps.embed_dim=192 hyps.nhead=4 hyps.nlayers=2

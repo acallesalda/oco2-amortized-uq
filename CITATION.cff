@@ -1,0 +1,87 @@
+cff-version: 1.2.0
+title: >-
+  Amortized probabilistic retrieval of atmospheric CO2 from OCO-2 spectra:
+  code and reproduction pipeline
+message: >-
+  If you use this software, please cite both the paper and this software record.
+type: software
+license: MIT
+repository-code: "https://github.com/acallesalda/oco2-amortized-uq"
+abstract: >-
+  Training and evaluation code for amortized probabilistic retrieval of atmospheric CO2
+  from OCO-2 spectra. A convolutional-transformer network maps a three-band spectrum to a
+  predictive distribution over column-average CO2, the 20-level CO2 profile, or the four
+  near-surface levels; uncertainty is obtained either from a last-layer Laplace
+  approximation or from a conditional rational-quadratic spline normalizing flow, and both
+  are compared against the operational ACOS L2FP retrieval on held-out geophysical scenes
+  and on two held-out months. Includes the data-preparation pipelines, the six trainers,
+  the selected hyperparameters, the GPU scoring pass, and the scripts that regenerate every
+  table and figure in the accompanying paper.
+keywords:
+  - OCO-2
+  - remote sensing
+  - atmospheric CO2 retrieval
+  - uncertainty quantification
+  - normalizing flows
+  - Laplace approximation
+  - amortized inference
+  - deep learning
+
+authors:
+  - given-names: Alejandro
+    family-names: Calle-Saldarriaga
+    email: callesaldarr@wisc.edu
+    affiliation: "Department of Statistics, University of Wisconsin-Madison"
+  - given-names: Felix
+    family-names: Jimenez
+    affiliation: "Department of Statistics, University of Wisconsin-Madison"
+  - given-names: Jack
+    family-names: Grosskreuz
+    affiliation: "Department of Statistics, University of Wisconsin-Madison"
+  - given-names: Jiazheng
+    family-names: Wang
+    affiliation: "Department of Statistics, University of Wisconsin-Madison"
+  - given-names: Jonathan
+    family-names: Hobbs
+    affiliation: "Jet Propulsion Laboratory, California Institute of Technology"
+  - given-names: Matthias
+    family-names: Katzfuss
+    affiliation: "Department of Statistics, University of Wisconsin-Madison"
+
+# The software DOI goes here once the Zenodo record is minted, as
+#
+#   identifiers:
+#     - type: doi
+#       value: "10.5281/zenodo.XXXXXXXX"
+#       description: The archived snapshot of this repository.
+#
+# It is commented out rather than left as a placeholder because an invalid DOI breaks
+# GitHub's "Cite this repository" panel and every CFF validator. DOI-PENDING-SOFTWARE
+# is the token `release/make_release.py` greps for, so the build keeps saying so.
+
+references:
+  - type: article
+    title: >-
+      Amortized Probabilistic Retrieval of Atmospheric CO2 from OCO-2 Spectra Using Deep
+      Learning with Laplace Approximations and Normalizing Flows
+    authors:
+      - given-names: Alejandro
+        family-names: Calle-Saldarriaga
+      - given-names: Felix
+        family-names: Jimenez
+      - given-names: Jack
+        family-names: Grosskreuz
+      - given-names: Jiazheng
+        family-names: Wang
+      - given-names: Jonathan
+        family-names: Hobbs
+      - given-names: Matthias
+        family-names: Katzfuss
+    status: submitted
+  - type: dataset
+    title: >-
+      Simulated OCO-2 soundings, split tables, standardization statistics and trained model
+      weights for amortized probabilistic CO2 retrieval
+    doi: 10.5281/zenodo.20617718
+    license: CC-BY-4.0
+    url: "https://zenodo.org/records/20617718"

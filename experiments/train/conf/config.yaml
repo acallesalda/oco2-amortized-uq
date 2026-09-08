@@ -1,0 +1,33 @@
+defaults:
+  - model: full_regressor
+  - data: local_simulated
+  - override hydra/sweeper: optuna
+  - override hydra/sweeper/sampler: tpe
+  - _self_
+
+hyps:
+  seed: 42
+  lr: 3e-4
+  wd: 3e-4
+  epochs: 25
+
+data:
+  seed: ${hyps.seed}
+
+
+hydra:
+  run:
+    dir: /workspace/project/outputs/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: /workspace/project/multirun
+    subdir: ${now:%Y-%m-%d_%H-%M-%S}/${hydra.job.num}
+  sweeper:
+    sampler:
+      seed: 123
+    direction: minimize
+    storage: null
+    n_trials: 500
+    n_jobs: 1
+  searchpath:
+    - pkg://shared_conf
+

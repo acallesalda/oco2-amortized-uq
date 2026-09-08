@@ -1,0 +1,76 @@
+# Build the ALL-FEBRUARY split as a table, with statistics and covariates.
+#
+#     condor_submit prep_full_feb.sub
+#
+# CPU only and small: it reads two CSVs out of two existing archives and never extracts a
+# spectrum, so it wants one core and starts quickly. The root of months_full.dag, though:
+# every other node of that graph reads the archive this produces.
+#
+# It takes group_split_v1.csv from the split archive and covariates_v1.csv.gz from the
+# covariate archive -- neither the 43k .npy spectra nor the raw HDF5 are inputs here. The
+# statistics and the covariate encodings ARE recomputed, because the training rows have
+# changed: 406 reference soundings rather than 361.
+#
+# The table it writes has NO test partition -- March and July are the test set. It DOES
+# keep group_split_v1's 45 validation scenes, because the trainers select their
+# checkpoint on them and predict.py calibrates the Laplace's aleatoric diagonal on them
+# at scoring time; both would otherwise be in-sample.
+#
+# The split name is set inside prep_full_feb.sh, not here. This job has no other split it
+# could build.
+
+include : site.conf
+
+universe       = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+executable = prep_full_feb.sh
+arguments  =
+
+# A no-op at runtime -- prep_full_feb.sh hardcodes `export OCO2_SPLIT=full_feb_v1` -- and stated
+# here anyway, so the archive this job writes and the split inside it can be checked
+# against each other without opening the script. check_submit_macros.py does that,
+# after prep_ext_cap.sub was generated without one and built the capped table under
+# the uncapped name (2026-09-08).
+environment = "OCO2_SPLIT=full_feb_v1"
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz
+
+should_transfer_files  = YES
+when_to_transfer_output = ON_EXIT
+
+# One archive, holding the split table, its statistics AND the augmented table --
+# job_common.sh's oco2_unpack_split knows to expect all three here for this split.
+transfer_output_files  = oco2_full_feb_v1.tar.gz
+transfer_output_remaps = "oco2_full_feb_v1.tar.gz = $(OSDF)/oco2_full_feb_v1.tar.gz"
+
+requirements = $(STAGING_REQ)
+
+stream_output = true
+stream_error  = true
+
+# Self-sized rather than including job_resources.conf, as prep_replicate.sub is: that file
+# is written for the jobs that unpack the 43k .npy spectra and hand them to a DataLoader.
+# This job opens no spectrum. All it ever holds is the container, two archives it deletes
+# as it reads them, and a few hundred MB of CSV.
+request_cpus   = 1
+request_memory = 8GB
+request_disk   = 12GB
+
+log    = logs/prep_full_feb.log
+output = logs/prep_full_feb.out
+error  = logs/prep_full_feb.err
+
+# max_retries = 0, deliberately. ON_EXIT transfers the archive even on a nonzero exit and
+# OSDF then refuses to overwrite it, so the retry is held with a transfer error that says
+# nothing about the real failure. Clean and resubmit:
+#
+#   ./fetch_results.sh --clean prep_full_feb
+#   condor_submit prep_full_feb.sub
+max_retries = 0
+
+queue

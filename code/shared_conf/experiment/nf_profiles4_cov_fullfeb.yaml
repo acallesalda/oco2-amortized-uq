@@ -1,0 +1,89 @@
+# @package _global_
+# Conditional normalizing flow over the near-surface levels 17-20, trained on ALL of February.
+#
+# GENERATED TWIN of code/shared_conf/experiment/nf_profiles4_cov_grouped.yaml, differing only in the split:
+# `group_split_v1` -> `full_feb_v1` everywhere it names a table, a statistics directory or
+# a weights tree. code/test/test_replicate_configs.py asserts that key by key, so the two
+# stay a controlled pair or the tests fail.
+#
+# The partition is the whole difference. `full_feb_v1` is `group_split_v1` with its test
+# scenes folded back into training -- 406 reference soundings instead of 361, 40,492 spectra
+# instead of 36,003 -- because once March and July are the test set, holding 45 February
+# scenes back costs accuracy and buys nothing.
+#
+# The 45 validation scenes are unchanged. They are what the search ranked these
+# configurations on, and what predict.py calibrates the Laplace's aleatoric diagonal on at
+# scoring time; calibrating that in-sample would make the baseline's intervals optimistically
+# narrow. See experiments/pipelines/make_full_feb_split.py.
+#
+# Nothing here is a searched hyperparameter. chtc/bo_final.sh overrides those from
+# bo_<study>_best.json, the winner of the group-split search, which is what makes this the
+# same configuration on more data rather than a second search.
+#
+# Run (via the DAG, which sets OCO2_SPLIT=full_feb_v1):
+#   condor_submit_dag chtc/months_full.dag
+
+covariates: scene_prior
+
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations_filename: aux_data.csv
+  stats_dir: /workspace/project/experiments/pipelines/stats/full_feb_v1
+  split_csv: /workspace/project/scratch/simulated/files/splits/full_feb_v1_cov.csv
+  seed: 42
+  train_batch_size: 128
+  val_batch_size: 256
+
+task:
+  # 1-based pressure levels; train_nf_profiles_4d converts to 0-based internally.
+  last4: [17, 18, 19, 20]
+  standardize_y: false
+
+model:
+  # CORRECTED 2026-08-14 after nf_last4 crashed. These must match the backbone this flow
+  # warm-starts from -- det_last4, which is embed_dim 320 / nhead 4 / nlayers 2 (Table A1's
+  # deterministic near-surface row). They were 256 / 8 / 3, taken from best_nf4.pt's stored
+  # cfg, and every tensor mismatched:
+  #
+  #   size mismatch for encoder.aux_encoder.encoder.weight: copying a param with shape
+  #   torch.Size([320, 32]) ... the shape in current model is torch.Size([256, 32]).
+  #
+  # `strict=False` does not save you here: it forgives missing and unexpected keys, not
+  # shapes, so the load raises rather than partially applying.
+  #
+  # Note what this implies about best_nf4.pt: its cfg says the backbone was 256 wide, but
+  # it also names a `pretrained_ckpt` that is 320 wide (the published near-surface model is
+  # 20125787 bytes -- byte-identical in size to the one det_last4 just produced at 320).
+  # Those two cannot both be true, so the published nf4 configuration was already
+  # internally inconsistent and is not a coherent target to reproduce. Matching the actual
+  # warm-start source is the version that runs and that the DAG documents.
+  aux_dim: 32
+  embed_dim: 320
+  nhead: 4
+  nlayers: 2
+  out_dim: 4
+  # Warm start from the deterministic near-surface model trained on THIS split.
+  pretrained_ckpt: /workspace/project/experiments/weights/full_feb_v1/full_regressor_profiles_last4/net_profiles.pt
+
+nflow:
+  num_layers: 11
+  hidden_features: 597
+  num_bins: 8
+  tail_bound: 5.05952066599221     # was 5.060; full precision from the checkpoint
+  min_bin_width: 0.001             # was 0.005; corrected to the checkpoint
+  min_bin_height: 0.001            # was 0.005; corrected to the checkpoint
+  min_derivative: 0.001
+
+optim:
+  lr: 2.0934846711727584e-4        # was 2.09e-4; full precision from the checkpoint
+  weight_decay: 1.759837373984636e-6
+  grad_clip: 5.0                   # was 1.0; corrected to the checkpoint
+
+train:
+  device: cuda
+  # was 100; the checkpoint's cfg says 50, and "only the split changes" means matching it.
+  # This also takes the job out of the "long" GPU class -- see oco2.dag.
+  epochs: 50
+  save_dir: /workspace/project/experiments/weights/full_feb_v1/flow_regressor_profiles_nf4
+  ckpt_name: best_nf4.pt
+  log_every: 100

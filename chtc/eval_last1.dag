@@ -1,0 +1,32 @@
+# Scoring for the scalar surface task.
+#
+#     condor_submit_dag eval_last1.dag
+#
+# Two nodes, both independent, both reading result archives from /staging:
+#
+#     eval_last1           <- det_last1.tar.gz     + nf_last1.tar.gz
+#     eval_last1_marginal  <- det_profiles.tar.gz  + nf_profiles.tar.gz
+#
+# The first is the native surface task -- models trained to predict level 20 and nothing
+# else. The second slices the 20-level models' predictive at level 20, which for a
+# Gaussian is exactly the marginal and for the flow is a sample marginal (so its NLL comes
+# from the KDE and is labelled as such in the table). Together they answer whether
+# specializing the model to the surface layer buys anything over marginalizing the full
+# profile -- the same pairing eval.dag runs for the near-surface levels.
+#
+# Submit after last1.dag has finished for the first node; the second only needs the
+# profiles archives, which already exist.
+#     ./fetch_results.sh --status
+
+JOB eval_last1          eval.sub
+JOB eval_last1_marginal eval.sub
+
+VARS eval_last1 task="last1" det_tar="det_last1.tar.gz" flow_tar="nf_last1.tar.gz"
+VARS eval_last1_marginal task="last1_marginal" \
+     det_tar="det_profiles.tar.gz" flow_tar="nf_profiles.tar.gz"
+
+MAXJOBS GPU 2
+CATEGORY eval_last1          GPU
+CATEGORY eval_last1_marginal GPU
+
+NODE_STATUS_FILE eval_last1.dag.status 30

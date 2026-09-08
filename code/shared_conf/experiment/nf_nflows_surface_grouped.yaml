@@ -1,0 +1,72 @@
+# Surface-only (level 20) conditional normalizing flow, on the reference-sounding-disjoint
+# split. The flow half of the `last1` task; `full_regressor_profiles_last1_grouped.yaml`
+# is the deterministic half.
+#
+# This is train_nf.py in its `surface` target mode, which is what that script did
+# silently for the entire published run: it loaded the PROFILE dataset and took
+# `label[:, 19]`. That is why the submitted "Normalizing flow" row of the
+# published Table 1 is therefore a level-20 model being compared against a column-average
+# ACOS and a column-average Laplace. This config makes that target explicit and gives it
+# the two counterparts it never had -- a deterministic surface model and an ACOS surface
+# posterior -- so the row becomes a comparison instead of a mismatch.
+#
+# Practical consequence: the architecture below is not a guess for a new task. It is the
+# one the Bayesian optimization behind the published scalar flow selected, and it selected
+# it *while training on this target*. See nf_full_regressor_nflows_grouped.yaml for the
+# checkpoint audit that recovered these values (and for the one unverifiable number,
+# tail_bound).
+#
+# The 1-d flow is an autoregressive spline stack (train_nf.py's NFHead), not the PRQ
+# coupling stack the profile flows use. That is forced, not stylistic: a coupling
+# transform splits the target into transformed and conditioning halves, and with one
+# dimension there is no such split -- the flow would be the identity.
+#
+# Run:
+#   python3 experiments/train/train_nf.py \
+#       --exp_cfg code/shared_conf/experiment/nf_nflows_surface_grouped.yaml
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+  train_size: 0.9          # ignored when split_csv is set (val comes from the table)
+  stats_dir: /workspace/project/experiments/pipelines/stats/group_split_v1
+  split_csv: /workspace/project/scratch/simulated/files/splits/group_split_v1.csv
+  # Level 20 of the profile target, standardized by profile_sigma[19] (~19.2 ppm) and fed
+  # by the profile loader, whose bands are NOT padded to 1024. Both are properties of the
+  # `surface` branch of train_nf.py and both have to match at scoring time -- predict.py's
+  # `last1` task uses the profile loader for exactly this reason.
+  target: surface
+
+weights_dir: /workspace/project/experiments/weights/group_split_v1/flow_regressor_nflow_surface
+
+bo:
+  enabled: false
+
+model_cfg_obj:
+  full_backbone:
+    aux_dim: 32
+    embed_dim: 256
+    nhead: 8
+    nlayers: 1
+  nflow:
+    hidden: 384
+    layers: 5
+    bins: 9
+    tail_bound: 6.3108919641
+
+optim:
+  lr: 4.533555957493404e-04
+  wd: 5.387680934037755e-04
+  epochs: 35
+  grad_clip: 1.0
+
+setup:
+  freeze_backbone: false
+  # From scratch, like the published scalar flow. The deterministic surface model is not
+  # a warm start here: its backbone is 320-wide with 4 heads and 2 layers (det_last4's
+  # shape), and this flow's is 256/8/1, so load_backbone_ckpt_if_any would warn about
+  # every tensor and load nothing. Changing the flow's backbone to match would mean
+  # abandoning the one architecture that is known to have been tuned on this target.
+  backbone_ckpt: null

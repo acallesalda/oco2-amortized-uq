@@ -1,0 +1,6 @@
+_target_: modeling.full_regressor_profiles.FullRegressorProfiles
+embed_dim: 256
+nhead: 8
+nlayers: 1
+aux_dim: 32
+out_dim: 20

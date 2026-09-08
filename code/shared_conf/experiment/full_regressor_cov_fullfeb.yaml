@@ -1,0 +1,62 @@
+# @package _global_
+# Deterministic scalar XCO2 regressor, trained on ALL of February.
+#
+# GENERATED TWIN of code/shared_conf/experiment/full_regressor_cov_grouped.yaml, differing only in the split:
+# `group_split_v1` -> `full_feb_v1` everywhere it names a table, a statistics directory or
+# a weights tree. code/test/test_replicate_configs.py asserts that key by key, so the two
+# stay a controlled pair or the tests fail.
+#
+# The partition is the whole difference. `full_feb_v1` is `group_split_v1` with its test
+# scenes folded back into training -- 406 reference soundings instead of 361, 40,492 spectra
+# instead of 36,003 -- because once March and July are the test set, holding 45 February
+# scenes back costs accuracy and buys nothing.
+#
+# The 45 validation scenes are unchanged. They are what the search ranked these
+# configurations on, and what predict.py calibrates the Laplace's aleatoric diagonal on at
+# scoring time; calibrating that in-sample would make the baseline's intervals optimistically
+# narrow. See experiments/pipelines/make_full_feb_split.py.
+#
+# Nothing here is a searched hyperparameter. chtc/bo_final.sh overrides those from
+# bo_<study>_best.json, the winner of the group-split search, which is what makes this the
+# same configuration on more data rather than a second search.
+#
+# Run (via the DAG, which sets OCO2_SPLIT=full_feb_v1):
+#   condor_submit_dag chtc/months_full.dag
+
+defaults:
+  - override /data: local_simulated_full_feb_cov
+
+covariates: scene
+
+# Inert at D=1 -- with one target the ppm and standardized RMSE differ by the constant
+# sigma * 1e6, so they select the same checkpoint. It is defined anyway so that
+# `select_metric=...` is a valid override for every task: chtc/bo_trial.sh passes it to
+# all three studies, and Hydra rejects an override of a key a config does not declare
+# ("Could not override 'select_metric'. No match in config"), which would have failed
+# every XCO2 trial in the search a minute into the job.
+select_metric: std
+
+hyps:
+  model: full_regressor
+  seed: 42
+  embed_dim: 512
+  nhead: 4
+  nlayers: 1
+  aux_dim: 32
+  lr: 6.471796937675714e-05
+  wd: 4.772666391106017e-06
+  epochs: 25
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+
+data:
+  seed: ${hyps.seed}
+  weight_path: /workspace/project/experiments/weights/full_feb_v1/full_regressor_${covariates}
+
+hydra:
+  run:
+    dir: ${data.weight_path}/runs/${now:%Y%m%d_%H%M%S}

@@ -1,0 +1,44 @@
+# @package _global_
+# Deterministic 20-d CO2 profile regressor on the reference-sounding-disjoint split.
+# Single run with fixed hyperparameters (no Bayesian optimization).
+#
+# Hyperparameters from weights/full_regressor_profiles/global_best/best_hparams.yaml,
+# i.e. the checkpoint behind the published Table 2.
+# !! Architecture agrees with Table A1 but the optimizer settings do not: Table A1
+#    reports lr=3.00e-4, wd=3.00e-4; the checkpoint was trained with lr=8e-4, wd=9.1e-4.
+#
+# Run:
+#   python3 experiments/train/train_profiles.py +experiment=full_regressor_profiles_grouped
+# (the defaults list below already switches the data group; if your Hydra version
+#  rejects the override, add `data=local_simulated_grouped` on the command line)
+defaults:
+  - override /data: local_simulated_grouped
+
+task: profiles
+target_indices: all
+weights_dir: /workspace/project/experiments/weights/group_split_v1/full_regressor_profiles
+
+hyps:
+  model: full_regressor_profiles
+  seed: 42
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+  aux_dim: 32
+  lr: 8.0e-4
+  wd: 9.1e-4
+  epochs: 40
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+  out_dim: 20
+
+data:
+  seed: ${hyps.seed}
+
+hydra:
+  run:
+    dir: ${weights_dir}/runs/${now:%Y%m%d_%H%M%S}

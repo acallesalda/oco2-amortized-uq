@@ -1,0 +1,70 @@
+# A GPU shell inside the real container, with the real data attached.
+#
+#     condor_submit -i interactive.sub
+#
+# Run this ONCE before launching the DAG. It costs ten minutes and catches, in order of
+# how often they actually bite:
+#
+#   1. container_target_dir not taking effect  -> `pwd` is not /workspace/project
+#   2. the GPU being a card the cu121 wheels cannot drive
+#   3. a Zenodo archive that unpacked to an unexpected layout
+#   4. an import that resolved differently than it did on the development machine
+#
+# Once you have a shell:
+#
+#     pwd                                    # expect /workspace/project
+#     nvidia-smi
+#     source ./job_common.sh
+#     oco2_gpu_check
+#     oco2_setup
+#     oco2_unpack_data
+#     ls scratch/simulated/files/train | head
+#     python3 -c "import torch,laplace,nflows,xarray; print(torch.cuda.is_available())"
+#
+# and then, to check the training path really starts, one short run:
+#
+#     python3 experiments/train/train.py +experiment=full_regressor_grouped hyps.epochs=1
+#
+# (that last one needs the split, so run oco2_unpack_split first, or just let the DAG's
+#  prep node produce it and re-enter this shell afterwards.)
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe        = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+transfer_input_files = job_common.sh, \
+                       train.sh, \
+                       prep.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz
+
+# Nothing comes back from a scratch shell.
+transfer_output_files = ""
+
+requirements = $(STAGING_REQ)
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+# The same resources the training jobs get. A smoke test that asks for less than the real
+# job is a smoke test of something else -- and it is what would hide an out-of-memory that
+# only shows up at 24 GB.
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+log    = logs/interactive.log
+output = logs/interactive.out
+error  = logs/interactive.err
+
+queue

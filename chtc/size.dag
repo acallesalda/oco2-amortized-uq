@@ -1,0 +1,112 @@
+# The learning curve in the NUMBER OF REFERENCE SOUNDINGS, as one graph.
+#
+#     cd chtc && mkdir -p logs && condor_submit_dag size.dag
+#     ./fetch_results.sh --clean eval_xco2_s90 eval_xco2_s180 eval_xco2_s270
+#     python3 experiments/scoring/size_curve.py --out experiments/scoring/tables \
+#         --fig latex/figures
+#
+# WHAT THIS ANSWERS
+# -----------------
+# Four questions, one picture:
+#
+#   * a model diagnostic that speaks to generalization rather than to protocol;
+#   * whether 47,900 spectra -- 451 scenes -- is enough, next to a mission that takes a
+#     million soundings a day and tunes its bias correction on millions of them;
+#   * whether the tail of Figure~\ref{fig:scenes} is a sampling artefact. The
+#     cluster-balanced experiment tested re-weighting the scenes we have; this tests
+#     having more of them;
+#   * the conclusion's claim that the binding constraint is the number and spread of
+#     distinct scenes. That is a statement about a slope, and this measures it.
+#
+# A curve that is still falling at 361 scenes says the models are data-limited and that
+# simulating more scenes is the fix. One that has flattened says they are not, and the
+# limit is the conditioning or the architecture -- in which case the conclusion has to be
+# rewritten. Either outcome is publishable; what is not defensible is asserting the slope
+# without having measured it.
+#
+# WHAT IS HELD FIXED. The configuration (the search's winner at 361 scenes, re-searched at
+# no size), the trainer, the epoch count, the covariate preset, and the validation and test
+# scenes -- group_split_v1's 45 + 45, in every table. Only the training population moves.
+# Because the configuration is not re-searched, the small-data points are pessimistic: a
+# smaller training set would have selected a smaller model. Say so when the curve is
+# quoted.
+#
+# THE FOURTH POINT IS FREE. k = 361 is the published run: `xco2_bo.npz` in
+# results/group_split_v1_cov, already fetched. size_curve.py reads it as the last point.
+#
+# COST. Three prep jobs (CPU, minutes), six GPU retrains (1-2 h, concurrent, shorter at the
+# small sizes) and three scoring jobs (~20 min). Add the profile tasks by uncommenting the
+# blocks at the bottom: +6 retrains and +3 scoring jobs each.
+#
+# Prerequisites, all already in /staging for the published run (./fetch_results.sh --status):
+#   oco2_processed_{train,test}.tar.gz, oco2_profile_stats.tar.gz   stage_data.sh
+#   oco2_split_v1.tar.gz                                            prep.sub
+#   oco2_covariates_v1.tar.gz                                       covariates.sub
+#   results/bo25/bo_<study>_best.json                               the search's select nodes
+
+# ------------------------------------------------------------------ the three subsets
+JOB prep_s90   prep_size.sub
+VARS prep_s90   size="90"
+JOB prep_s180  prep_size.sub
+VARS prep_s180  size="180"
+JOB prep_s270  prep_size.sub
+VARS prep_s270  size="270"
+
+# ------------------------------------------------------- XCO2: two models per subset
+JOB det_xco2_s90   train_size.sub
+VARS det_xco2_s90   study="det_xco2" size="90"
+JOB nf_xco2_s90    train_size.sub
+VARS nf_xco2_s90    study="nf_xco2"  size="90"
+PARENT prep_s90 CHILD det_xco2_s90 nf_xco2_s90
+
+JOB det_xco2_s180  train_size.sub
+VARS det_xco2_s180  study="det_xco2" size="180"
+JOB nf_xco2_s180   train_size.sub
+VARS nf_xco2_s180   study="nf_xco2"  size="180"
+PARENT prep_s180 CHILD det_xco2_s180 nf_xco2_s180
+
+JOB det_xco2_s270  train_size.sub
+VARS det_xco2_s270  study="det_xco2" size="270"
+JOB nf_xco2_s270   train_size.sub
+VARS nf_xco2_s270   study="nf_xco2"  size="270"
+PARENT prep_s270 CHILD det_xco2_s270 nf_xco2_s270
+
+# ------------------------------------------------------------------------------ score
+JOB eval_xco2_s90  eval_size.sub
+VARS eval_xco2_s90  task="xco2" size="90"  det_study="det_xco2" flow_study="nf_xco2"
+PARENT det_xco2_s90 nf_xco2_s90 CHILD eval_xco2_s90
+
+JOB eval_xco2_s180 eval_size.sub
+VARS eval_xco2_s180 task="xco2" size="180" det_study="det_xco2" flow_study="nf_xco2"
+PARENT det_xco2_s180 nf_xco2_s180 CHILD eval_xco2_s180
+
+JOB eval_xco2_s270 eval_size.sub
+VARS eval_xco2_s270 task="xco2" size="270" det_study="det_xco2" flow_study="nf_xco2"
+PARENT det_xco2_s270 nf_xco2_s270 CHILD eval_xco2_s270
+
+# ------------------------------------------------- the two profile tasks: size_tasks.dag
+#
+# They are in a DAG of their own rather than here, because the three prep nodes above have
+# already run and their archives cannot be overwritten. See chtc/size_tasks.dag.
+#
+# ------------------------------------------------- (the original sketch, kept for reference)
+# The same three sizes on `last4`. Uncomment to add it: the near-surface task is where
+# the amortized posterior currently extracts nothing per-sounding (within/floor = 1.001),
+# so its curve answers a different question -- whether that is a data limit or a
+# conditioning one.
+#
+# JOB det_last4_s90   train_size.sub
+# VARS det_last4_s90   study="det_last4" size="90"
+# JOB nf_last4_s90    train_size.sub
+# VARS nf_last4_s90    study="nf_last4"  size="90"
+# PARENT prep_s90 CHILD det_last4_s90 nf_last4_s90
+# JOB eval_last4_s90  eval_size.sub
+# VARS eval_last4_s90  task="last4" size="90" det_study="det_last4" flow_study="nf_last4"
+# PARENT det_last4_s90 nf_last4_s90 CHILD eval_last4_s90
+#
+# ... and the same two blocks for 180 and 270.
+
+# A failed node should not stop the others; RETRY 0 for the reason given in balanced.dag.
+RETRY ALL_NODES 0
+
+NODE_STATUS_FILE size.dag.status 30

@@ -1,0 +1,57 @@
+# @package _global_
+# Deterministic scalar XCO2 regressor on the reference-sounding-disjoint split, with the
+# recovered scene covariates.
+#
+# Differs from full_regressor_grouped.yaml in exactly one respect: the auxiliary inputs.
+# Architecture, optimizer, epochs, split and statistics are unchanged, so the difference
+# in validation RMSE is attributable to the covariates alone.
+#
+#   covariates=legacy      the published four (SlrZen, Footprint, AerType1, AerType2)
+#   covariates=legacy_v2   the same four through the new encoder -- the control that
+#                          separates "new covariates" from "new encoding"
+#   covariates=scene       + viewing zenith angle (recovered from airmass), the two
+#                          air-mass factors, and ACOS's prior surface pressure
+#   covariates=scene_geo   + latitude and longitude
+#   covariates=acos_informed   + the operational retrieval's own output. NOT an
+#                          independent retrieval; report it as a post-processor of ACOS.
+#
+# Run:
+#   python3 experiments/train/train.py +experiment=full_regressor_cov_grouped
+#   python3 experiments/train/train.py +experiment=full_regressor_cov_grouped covariates=scene_geo
+defaults:
+  - override /data: local_simulated_grouped_cov
+
+covariates: scene
+
+# Inert at D=1 -- with one target the ppm and standardized RMSE differ by the constant
+# sigma * 1e6, so they select the same checkpoint. It is defined anyway so that
+# `select_metric=...` is a valid override for every task: chtc/bo_trial.sh passes it to
+# all three studies, and Hydra rejects an override of a key a config does not declare
+# ("Could not override 'select_metric'. No match in config"), which would have failed
+# every XCO2 trial in the search a minute into the job.
+select_metric: std
+
+hyps:
+  model: full_regressor
+  seed: 42
+  embed_dim: 512
+  nhead: 4
+  nlayers: 1
+  aux_dim: 32
+  lr: 6.471796937675714e-05
+  wd: 4.772666391106017e-06
+  epochs: 25
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+
+data:
+  seed: ${hyps.seed}
+  weight_path: /workspace/project/experiments/weights/group_split_v1/full_regressor_${covariates}
+
+hydra:
+  run:
+    dir: ${data.weight_path}/runs/${now:%Y%m%d_%H%M%S}

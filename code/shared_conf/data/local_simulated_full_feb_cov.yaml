@@ -1,0 +1,36 @@
+# All of February, with the recovered covariates merged in.
+#
+# GENERATED TWIN of code/shared_conf/data/local_simulated_grouped_cov.yaml, differing only
+# in split_csv and stats_dir. Build the two files it points at with chtc/prep_full_feb.sub,
+# which runs make_full_feb_split.py, compute_split_stats.py and augment_split.py in turn.
+#
+# The statistics are NOT shared with group_split_v1. The training rows are different -- 406
+# reference soundings rather than 361 -- so the target standardization and the covariate
+# encodings are re-estimated from them; reusing February's old constants would standardize
+# with a mean computed from 90 % of the data the model is fitted on.
+
+root: /workspace/data/oco2/simulated
+out_root: /workspace/project/scratch/simulated
+
+soundings: ${data.root}/og_data
+tree: ${data.root}/tree
+
+clean_tree: ${data.out_root}/tree/clean_oco2
+files: ${data.out_root}/files
+annotations: "aux_data.csv"
+weight_path: ${data.out_root}/weights
+
+split_csv: ${data.files}/splits/full_feb_v1_cov.csv
+stats_dir: /workspace/project/experiments/pipelines/stats/full_feb_v1
+
+seed: 42
+train_batch_size: 512
+val_batch_size: 4096
+
+# Cluster-balanced sampling. Declared here (rather than only on the command line) because
+# Hydra composes in struct mode: an override of a key that no config declares is a hard
+# error, and `data.balance_by=clst` therefore killed every deterministic trainer in the
+# first balanced run before a single epoch. null = off, i.e. published behaviour.
+# alpha tempers it: 0 = off, 1 = full inverse frequency, 0.5 = square root.
+balance_by: null
+balance_alpha: 0.5

@@ -1,0 +1,105 @@
+# Retrain study $(study)'s SEARCHED WINNER with cluster-balanced sampling. GPU, ~1-2 h.
+#
+#     condor_submit train_balanced.sub -a 'study = det_xco2'
+#     ... and the same for det_profiles, det_last4, nf_xco2, nf_profiles, nf_last4
+#
+# or, with the three scoring jobs, as one graph:
+#
+#     condor_submit_dag balanced.dag
+#
+# WHAT THIS TESTS. The group-disjoint split is stratified by SOM cluster and the clusters
+# are very unequal: 86 training reference soundings in cluster 1 against 12 in cluster 8
+# and 14 in cluster 9. Per-cluster test RMSE of the learned retrievals tracks that count
+# (Spearman -0.91 on XCO2, -0.86 near the surface) and the operational retrieval's does
+# not (-0.10), so the deficit is a property of how the training pool is sampled rather
+# than of the scenes. This job reweights training draws by n_cluster ** -0.5 and changes
+# nothing else.
+#
+# Three things are held fixed and one changes:
+#
+#   fixed   the configuration. Read from bo_$(study)_best.json -- the winner of the
+#           group-split search, not retyped here -- so this is the same architecture and
+#           optimizer behind the published tables.
+#   fixed   the trainer, the covariate preset (scene_prior) and the epoch count (40),
+#           exactly as chtc/bo/final.sub ran them.
+#   fixed   the split. group_split_v1: the same 361 training, 45 validation and 45 test
+#           reference soundings, so the balanced model is scored on the same scenes.
+#   CHANGED the sampler: WeightedRandomSampler with per-row weight n_cluster ** -0.5,
+#           in place of shuffle=True. Epoch length is unchanged.
+#
+# WHAT IT CANNOT DO, and say so when reporting it: balancing reweights the loss, it does
+# not create scenes. Cluster 8 still has 12 distinct reference soundings however often
+# they are drawn, so the expected gain is on the part of the deficit that is a per-cluster
+# systematic -- cluster 8's +5.5 ppm prior-to-truth offset above all -- and not on the
+# part that is extrapolation into a regime with no neighbours (cluster 9).
+#
+# The archives are named `<study>_final_bal.tar.gz` and the weights land in
+# experiments/weights/group_split_v1/bo_final/<study>_bal, distinct from the published
+# winner's, because OSDF refuses to overwrite an object and because two models at one
+# path is a failure with no trace in any log. bo_final.sh derives both from the fourth
+# argument below.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+# The staging namespace holding the search winners. Keep in step with --run in the
+# make_bo_dag.py invocation that generated chtc/bo/, and with BO_RUN in fetch_results.sh.
+BO_RUN = bo25
+
+# Tempering exponent for the sampler: 0 = off, 1 = full inverse frequency, 0.5 = square
+# root. Override on the command line with -a 'balance_alpha = 1' to run the untempered
+# version. See the caveat above before reading much into alpha = 1.
+balance_alpha = 0.5
+
+executable = bo_final.sh
+arguments  = $(study) scene_prior 40 $(balance_alpha)
+environment = "OCO2_SPLIT=group_split_v1"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/results/$(BO_RUN)/bo_$(study)_best.json
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = $(study)_final_bal.tar.gz
+transfer_output_remaps  = "$(study)_final_bal.tar.gz = $(OSDF)/results/$(study)_final_bal.tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
+# "medium" rather than "short", as in chtc/bo/final.sub: forty epochs, and the search is
+# free to have picked a 512-wide backbone with twelve coupling layers.
++GPUJobLength = "medium"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/$(study)_final_bal.log
+output = logs/$(study)_final_bal.out
+error  = logs/$(study)_final_bal.err
+
+# max_retries = 0, deliberately: ON_EXIT uploads the archive even on failure and OSDF
+# refuses to overwrite it, so a retry is held with a transfer error that says nothing
+# about the real one. Clean and resubmit:
+#   ./fetch_results.sh --clean $(study)_final_bal
+max_retries = 0
+queue

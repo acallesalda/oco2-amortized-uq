@@ -1,0 +1,41 @@
+# @package _global_
+# Deterministic near-surface (levels 17-20) regressor on the reference-sounding-disjoint
+# split, with the recovered scene covariates and the ppm-aligned loss and selection metric.
+# See full_regressor_profiles_cov_grouped.yaml for what each switch does.
+#
+# Run:
+#   python3 experiments/train/train_profiles.py +experiment=full_regressor_profiles_last4_cov_grouped
+defaults:
+  - override /data: local_simulated_grouped_cov
+
+task: profiles
+target_indices: last4
+covariates: scene
+loss_weight: ppm
+select_metric: ppm
+weights_dir: /workspace/project/experiments/weights/group_split_v1/full_regressor_profiles_last4_${covariates}_${loss_weight}
+
+hyps:
+  model: full_regressor_profiles
+  seed: 42
+  embed_dim: 320
+  nhead: 4
+  nlayers: 2
+  aux_dim: 32
+  lr: 1.95e-4
+  wd: 4.76e-4
+  epochs: 40
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+  out_dim: 4
+
+data:
+  seed: ${hyps.seed}
+
+hydra:
+  run:
+    dir: ${weights_dir}/runs/${now:%Y%m%d_%H%M%S}

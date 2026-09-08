@@ -1,0 +1,93 @@
+# Score one task against the held-out partition of the group split.
+#
+# Used by eval.dag for xco2, profiles and last4. To run one by hand:
+#
+#     condor_submit eval.sub -a 'task = profiles' \
+#                            -a 'det_tar = det_profiles.tar.gz' \
+#                            -a 'flow_tar = nf_profiles.tar.gz'
+#
+# The checkpoints arrive as the *result archives* the training jobs left in
+# /staging/<l>/<netid>/oco2/results/, so this is a separate DAG from oco2.dag and can be
+# submitted whenever those exist -- there is no need to have decided how to evaluate
+# before starting to train.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe        = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+executable = eval.sh
+arguments  = $(task) $(det_tar) $(flow_tar)
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/results/$(det_tar), \
+                       $(OSDF)/results/$(flow_tar)
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task).tar.gz
+transfer_output_remaps  = "eval_$(task).tar.gz = $(OSDF)/results/eval_$(task).tar.gz"
+
+# ---------------------------------------------------------------------------------
+# GPU
+# ---------------------------------------------------------------------------------
+# Scoring is a Laplace refit over a few thousand training soundings plus 512 flow draws
+# for each of ~4800 test soundings. That is tens of minutes, not hours, so "short" -- and
+# short jobs match more slots, which matters when this is the last thing standing between
+# the run and the tables.
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+# Send stdout/stderr back as they are written, not at job end.
+#
+# By default HTCondor buffers a job's output on the execute node and transfers it only on
+# completion, so `tail -f logs/<node>.out` shows nothing for the entire run -- which on a
+# 40-epoch job is hours of not knowing whether it is progressing or wedged. `condor_tail`
+# works without this, but only while the job is alive and only one job at a time.
+#
+# The cost is a trickle of network writes. These jobs emit one line per epoch, so it is
+# nothing; do not copy this to a job that prints per-batch.
+#
+# Pairs with PYTHONUNBUFFERED=1 in job_common.sh: streaming a block-buffered stream would
+# still arrive in 8 KB lumps.
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task).log
+output = logs/eval_$(task).out
+error  = logs/eval_$(task).err
+
+# max_retries = 0, deliberately.
+#
+# ON_EXIT transfers the output archive even when the job exits nonzero, so a failed
+# attempt still uploads <name>.tar.gz to /staging. OSDF then refuses to overwrite it:
+#
+#   Pelican Client Error: remote object already exists, upload aborted
+#
+# and the retry is HELD with a transfer error that says nothing about why the job failed
+# in the first place. A retry here cannot succeed. Clean and resubmit instead:
+#
+#   ./fetch_results.sh --clean eval_$(task)
+#   condor_submit eval.sub
+max_retries = 0
+
+queue

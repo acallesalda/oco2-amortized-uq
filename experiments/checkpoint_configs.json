@@ -1,0 +1,140 @@
+[
+  {
+    "path": "weights/full_regressor_profiles/global_best/net_profiles_old.pt",
+    "top_level_keys": [],
+    "n_tensors": 93,
+    "n_parameters": 2051325,
+    "inferred_backbone": {
+      "embed_dim": 256,
+      "aux_dim": 32,
+      "nlayers": 1,
+      "out_dim": 20,
+      "nhead": "not recoverable from state_dict (needs stored cfg)"
+    }
+  },
+  {
+    "path": "weights/flow_regressor_nflow/best_flow_nflows.pt",
+    "extra": {
+      "val_nll": -1.2459185958107202,
+      "lr": 0.0004533555957493404,
+      "wd": 0.0005387680934037755,
+      "epochs": 35
+    },
+    "top_level_keys": [
+      "extra",
+      "state_dict"
+    ],
+    "error": "no tensor state_dict found"
+  },
+  {
+    "path": "weights/flow_regressor_profiles/best_flow_profiles.pt",
+    "stored_cfg": {
+      "layers": 9,
+      "hidden": 384,
+      "bins": 10,
+      "tail_bound": 8.391013429624302,
+      "out_dim": 20,
+      "standardize_y": false
+    },
+    "extra": {
+      "val_nll": -40.71889803609472,
+      "epoch": 35,
+      "trial": 99
+    },
+    "top_level_keys": [
+      "backbone",
+      "cfg",
+      "extra",
+      "feat",
+      "nf"
+    ],
+    "n_tensors": 294,
+    "n_parameters": 19435078,
+    "inferred_backbone": {
+      "embed_dim": 256,
+      "aux_dim": 32,
+      "nlayers": 1,
+      "out_dim": 20,
+      "nhead": "not recoverable from state_dict (needs stored cfg)"
+    },
+    "inferred_flow": {
+      "n_coupling_layers": 9,
+      "hidden_features": 384,
+      "_final_layer_out_features": 290,
+      "bins": "solve out_features = transformed_dims * (3*bins + 2); out_features=290",
+      "tail_bound": "not recoverable from state_dict (needs stored cfg)"
+    }
+  },
+  {
+    "path": "weights/flow_regressor_profiles_nf4_bo_warm_v1/best_nf4.pt",
+    "stored_cfg": {
+      "data": {
+        "root": "/workspace/data/oco2/simulated/files",
+        "annotations_filename": "aux_data.csv",
+        "train_batch_size": 128,
+        "val_batch_size": 256,
+        "seed": 42,
+        "stats_dir": "/workspace/project/experiments/pipelines/stats"
+      },
+      "task": {
+        "last4": [
+          17,
+          18,
+          19,
+          20
+        ],
+        "standardize_y": true
+      },
+      "model": {
+        "aux_dim": 32,
+        "embed_dim": 256,
+        "nhead": 8,
+        "nlayers": 3,
+        "out_dim": 4,
+        "pretrained_ckpt": "/workspace/project/experiments/weights/full_regressor_profiles/global_best/net_profiles.pt"
+      },
+      "nflow": {
+        "num_layers": 11,
+        "hidden_features": 597,
+        "num_bins": 8,
+        "tail_bound": 5.05952066599221,
+        "min_bin_width": 0.001,
+        "min_bin_height": 0.001,
+        "min_derivative": 0.001
+      },
+      "optim": {
+        "lr": 0.00020934846711727584,
+        "weight_decay": 1.759837373984636e-06,
+        "grad_clip": 5.0
+      },
+      "train": {
+        "epochs": 50,
+        "log_every": 100,
+        "save_dir": "/workspace/project/experiments/weights/flow_regressor_profiles_nf4_bo_warm_v1",
+        "ckpt_name": "_trial_latest.pt"
+      },
+      "out_dim": 4
+    },
+    "top_level_keys": [
+      "cfg",
+      "feat",
+      "nf"
+    ],
+    "n_tensors": 358,
+    "n_parameters": 41289507,
+    "inferred_backbone": {
+      "embed_dim": 256,
+      "aux_dim": 32,
+      "nlayers": 3,
+      "out_dim": 4,
+      "nhead": "not recoverable from state_dict (needs stored cfg)"
+    },
+    "inferred_flow": {
+      "n_coupling_layers": 11,
+      "hidden_features": 597,
+      "_final_layer_out_features": 46,
+      "bins": "solve out_features = transformed_dims * (3*bins + 2); out_features=46",
+      "tail_bound": "not recoverable from state_dict (needs stored cfg)"
+    }
+  }
+]

@@ -1,0 +1,33 @@
+# Architecture override for the PUBLISHED scalar flow checkpoint,
+#   experiments/weights/flow_regressor_nflow/best_flow_nflows.pt
+#
+# !! CHECK BEFORE USING !!
+# That checkpoint records no architecture at all -- train_nf.py's save_checkpoint stored
+# only {val_nll, lr, wd, epochs} at the time, which is why
+# experiments/dump_checkpoint_config.py reports "no tensor state_dict found" for it and
+# why xco2.ipynb carries these numbers as literals in a code cell.
+#
+# The values below are those literals. They are the best record we have and they are NOT
+# independently verified. Before any number produced with this file goes into the paper,
+# confirm the flow shape against the state dict:
+#
+#     python3 experiments/dump_checkpoint_config.py \
+#         experiments/weights/flow_regressor_nflow/best_flow_nflows.pt
+#
+# and note that they also disagree with the "NF / XCO2" row of Table A1, which reports
+# 3 layers, hidden 256, 21 bins, tail bound 6.954. One of the three is
+# wrong; this file is not the place to decide which.
+#
+# The group-split checkpoint does not need this file -- train_nf.py already stores
+# extra.backbone_cfg and extra.nflow_cfg in its payload.
+backbone:
+  aux_dim: 32
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+
+nflow:
+  hidden: 384
+  layers: 5
+  bins: 9
+  tail_bound: 6.3108919641

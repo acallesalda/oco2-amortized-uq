@@ -1,0 +1,119 @@
+# The definitive temporal generalization experiment, as one graph.
+#
+#     # once: upload the two raw months to /staging FROM the machine that has them.
+#     # They are not Zenodo items and *.zip is gitignored, so no pull brings them.
+#     #   host        transfer.chtc.wisc.edu
+#     #   destination /staging/<first letter of netid>/<netid>/oco2/
+#     #   files       OCO2SimUQExpt_202003.zip, OCO2SimUQExpt_202007.zip (flat, exact names)
+#     # See docs/hpc.md, "the temporal hold-out".
+#
+#     cd chtc && mkdir -p logs && condor_submit_dag months_full.dag
+#     ./fetch_results.sh --months-full
+#
+# What this graph is, in one paragraph
+# ------------------------------------
+# `months.dag` scores the published models -- the search winners trained on 361 of
+# February's 451 reference soundings, with 45 held back as a February test set. That
+# hold-out existed because February was the only month there was. It is not needed any
+# more: March and July are the test set, and 45 unseen February scenes are 45 scenes the
+# model could have learned from instead. So this graph rebuilds the February side first --
+# same searched configuration, same trainer, same epochs, same validation scenes, 406
+# training reference soundings instead of 361 -- and scores THAT on the two new months.
+#
+# The 45 validation scenes stay held out. The trainers select their checkpoint on them,
+# and predict.py calibrates the Laplace's aleatoric diagonal on them when these models are
+# scored -- doing that in sample would make the baseline's intervals optimistically narrow.
+#
+# One prep job, six retrains, two month preps, eight scoring jobs. About four hours of wall
+# clock with a free queue, most of it the six retrains running concurrently.
+#
+#   prep_full  (CPU, minutes)
+#       |                    \
+#       |                     +--> 6 x train_full  (GPU, 1-2 h each, concurrent)
+#       +--> 2 x prep_month   (CPU, ~40 min each, concurrent)      |
+#                     |                                            |
+#                     +------------> 8 x eval_month <--------------+
+#
+# `det_study`/`flow_study` are declared here rather than in eval_month_full.sub because a
+# mismatched pair does not fail -- it scores a different model and produces a plausible
+# number. The pairs are the same ones chtc/bo/bo_all.dag uses.
+#
+# Prerequisites, all in /staging (./fetch_results.sh --status will say):
+#   oco2_processed_{train,test}.tar.gz, oco2_profile_stats.tar.gz   stage_data.sh
+#   oco2_split_v1.tar.gz                                            prep.sub
+#   oco2_covariates_v1.tar.gz                                       covariates.sub
+#   results/bo25/bo_<study>_best.json                               the search's select nodes
+#   OCO2SimUQExpt_{202003,202007}.zip                               copied by hand
+
+# ----------------------------------------------------------- the all-February partition
+JOB prep_full prep_full_feb.sub
+
+# ------------------------------------------------- the six models, retrained on all of it
+JOB det_xco2_final_full     train_full.sub
+VARS det_xco2_final_full     study="det_xco2"
+JOB det_profiles_final_full train_full.sub
+VARS det_profiles_final_full study="det_profiles"
+JOB det_last4_final_full    train_full.sub
+VARS det_last4_final_full    study="det_last4"
+JOB nf_xco2_final_full      train_full.sub
+VARS nf_xco2_final_full      study="nf_xco2"
+JOB nf_profiles_final_full  train_full.sub
+VARS nf_profiles_final_full  study="nf_profiles"
+JOB nf_last4_final_full     train_full.sub
+VARS nf_last4_final_full     study="nf_last4"
+
+# One line, not two joined by a backslash: no other .dag here uses a continuation, and
+# DAGMan's input parser is not condor_submit's.
+PARENT prep_full CHILD det_xco2_final_full det_profiles_final_full det_last4_final_full nf_xco2_final_full nf_profiles_final_full nf_last4_final_full
+
+# --------------------------------------------------------------------- the two months
+# Also children of prep_full: the month's split table is full_feb_v1's train/val rows with
+# the month appended, so it cannot be built before that table exists.
+JOB prep_202003_full prep_month_full.sub
+VARS prep_202003_full month="202003"
+JOB prep_202007_full prep_month_full.sub
+VARS prep_202007_full month="202007"
+
+PARENT prep_full CHILD prep_202003_full prep_202007_full
+
+# ------------------------------------------------------------------------------ score
+JOB eval_xco2_202003_full eval_month_full.sub
+VARS eval_xco2_202003_full task="xco2" month="202003" det_study="det_xco2" flow_study="nf_xco2"
+PARENT prep_202003_full det_xco2_final_full nf_xco2_final_full CHILD eval_xco2_202003_full
+
+JOB eval_profiles_202003_full eval_month_full.sub
+VARS eval_profiles_202003_full task="profiles" month="202003" det_study="det_profiles" flow_study="nf_profiles"
+PARENT prep_202003_full det_profiles_final_full nf_profiles_final_full CHILD eval_profiles_202003_full
+
+JOB eval_last4_202003_full eval_month_full.sub
+VARS eval_last4_202003_full task="last4" month="202003" det_study="det_last4" flow_study="nf_last4"
+PARENT prep_202003_full det_last4_final_full nf_last4_final_full CHILD eval_last4_202003_full
+
+JOB eval_xco2_202007_full eval_month_full.sub
+VARS eval_xco2_202007_full task="xco2" month="202007" det_study="det_xco2" flow_study="nf_xco2"
+PARENT prep_202007_full det_xco2_final_full nf_xco2_final_full CHILD eval_xco2_202007_full
+
+JOB eval_profiles_202007_full eval_month_full.sub
+VARS eval_profiles_202007_full task="profiles" month="202007" det_study="det_profiles" flow_study="nf_profiles"
+PARENT prep_202007_full det_profiles_final_full nf_profiles_final_full CHILD eval_profiles_202007_full
+
+JOB eval_last4_202007_full eval_month_full.sub
+VARS eval_last4_202007_full task="last4" month="202007" det_study="det_last4" flow_study="nf_last4"
+PARENT prep_202007_full det_last4_final_full nf_last4_final_full CHILD eval_last4_202007_full
+
+# The published Table 3's second block: the 20-LEVEL models scored on levels 17-20. It is a
+# slice of the profile models' predictive, not a fourth pair of checkpoints, which is why
+# it takes det_profiles/nf_profiles and costs no training. Two more GPU jobs, and without
+# them the new months reproduce Tables 1 and 2 but only half of Table 3.
+JOB eval_last4_marginal_202003_full eval_month_full.sub
+VARS eval_last4_marginal_202003_full task="last4_marginal" month="202003" det_study="det_profiles" flow_study="nf_profiles"
+PARENT prep_202003_full det_profiles_final_full nf_profiles_final_full CHILD eval_last4_marginal_202003_full
+
+JOB eval_last4_marginal_202007_full eval_month_full.sub
+VARS eval_last4_marginal_202007_full task="last4_marginal" month="202007" det_study="det_profiles" flow_study="nf_profiles"
+PARENT prep_202007_full det_profiles_final_full nf_profiles_final_full CHILD eval_last4_marginal_202007_full
+
+# A failed scoring job should not stop the other month. RETRY is 0 for the same reason
+# max_retries is 0 in the submit files: OSDF refuses to overwrite the archive an exiting
+# job already uploaded, so an automatic retry replaces a real error with a transfer one.
+RETRY ALL_NODES 0

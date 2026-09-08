@@ -1,0 +1,45 @@
+{
+  "study": "det_last4",
+  "covariates": "scene_prior",
+  "metric": "val_rmse",
+  "metric_label": "val RMSE",
+  "value": 11.68919861589,
+  "round": 4,
+  "trial": 2,
+  "trial_epochs": 20,
+  "params": {
+    "hyps.lr": 0.00036045297316402385,
+    "hyps.wd": 2.5127525358718834e-06,
+    "hyps.embed_dim": 256,
+    "hyps.nhead": 4,
+    "hyps.nlayers": 1,
+    "data.train_batch_size": 256,
+    "loss_weight": "std"
+  },
+  "overrides": [
+    "data.train_batch_size=256",
+    "hyps.embed_dim=256",
+    "hyps.lr=0.0003604529732",
+    "hyps.nhead=4",
+    "hyps.nlayers=1",
+    "hyps.wd=2.512752536e-06",
+    "loss_weight=std"
+  ],
+  "n_trials": 25,
+  "n_completed": 25,
+  "n_failed": 0,
+  "selected_utc": "2026-08-20T22:21:42Z",
+  "baseline_value": 11.80506137971,
+  "baseline_overrides": [
+    "data.train_batch_size=512",
+    "hyps.embed_dim=320",
+    "hyps.lr=0.000195",
+    "hyps.nhead=4",
+    "hyps.nlayers=2",
+    "hyps.wd=0.000476",
+    "loss_weight=ppm"
+  ],
+  "improvement_abs": 0.11586276382000094,
+  "improvement_pct": 0.9814668479330446,
+  "search_beat_baseline": true
+}

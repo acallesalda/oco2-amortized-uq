@@ -1,0 +1,93 @@
+# Python environment for the OCO-2 container on CHTC.
+#
+# This is container/base_build/config/requirements.txt followed by
+# container/user_build/config/more_requirements.txt -- i.e. the same two layers, in the
+# same order, that produced the working image the models were trained in.
+# Pip resolves them in one pass here rather than in two Docker layers, which is why the
+# ordering matters: the torch pins and the `numpy<2` ceiling must both be visible to the
+# resolver.
+#
+# REPRODUCIBILITY NOTE
+# --------------------
+# These are constraints, not a lock. The exact versions that trained the published
+# checkpoints are whatever pip resolved in 2025. If that environment is
+# still reachable (the NVIDIA driver fault does not stop the container from starting on
+# CPU), run
+#     docker start oco2_<user> && docker exec oco2_<user> python3 -m pip freeze
+# and commit the output as chtc/requirements.lock.txt. oco2-gpu.def prefers the lock file
+# when it is present. Without it, expect minor-version drift in the unpinned packages
+# (matplotlib, scipy, xarray, mlflow); nothing there touches the numerics we report, but
+# the drift is real and should be stated rather than assumed away.
+
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+# ---- pinned first: everything else resolves around these ----
+torch==2.1.2+cu121
+torchvision==0.16.2+cu121
+torchaudio==2.1.2+cu121
+
+# ---- ceilings carried over from the user layer ----
+# torch 2.1.2 predates the numpy 2 ABI; nflows and backpack follow numpy.
+numpy<2
+pandas<2.2
+pyarrow<15
+bottleneck<1.4
+
+# ---- Laplace approximation stack ----
+curvlinops-for-pytorch<3
+backpack-for-pytorch==1.6.0
+laplace-torch==0.2.2.2
+
+# ---- normalizing flows ----
+nflows==0.14
+
+# ---- config, tracking, optimisation ----
+hydra-core
+hydra-optuna-sweeper
+# Capped 2026-08-14. Unpinned, pip resolved a version whose FileStore raises on
+# construction -- "the filesystem tracking backend is in maintenance mode" -- which killed
+# det_xco2, det_profiles and det_last4 at mlflow.start_run(), twenty seconds in. Both
+# training scripts log to a local ./mlruns and nothing here uses a database backend.
+# job_common.sh also exports MLFLOW_ALLOW_FILE_STORE=true, which is what unblocks the
+# current image; this cap is what stops the next rebuild from reintroducing it.
+mlflow<3
+# >=2.8 for TPESampler(constant_liar=...), which the batched Bayesian optimization in
+# chtc/bo_propose.py depends on -- without it a round of five asks returns five copies of
+# the same point. The image currently in /staging predates that script and carries an
+# optuna 2.x whose distribution classes are named differently (UniformDistribution rather
+# than FloatDistribution); bo_propose.py works around it at runtime, so this floor only
+# matters at the next rebuild. Do not raise it to >=3 without checking: the workaround is
+# what makes the current image usable, and pinning here does not change the current image.
+optuna>=2.8
+tensorboard
+wandb
+
+# ---- data / IO ----
+# code/data/processing/oco2_utils.py uses xr.DataTree and clean_data.py uses
+# xarray.backends.api.open_datatree, both of which need the native datatree in
+# xarray >= 2024.10 -- the older standalone `xarray-datatree` package will NOT work.
+xarray>=2024.10
+h5py
+h5netcdf
+zarr
+scipy
+
+# ---- misc ----
+matplotlib
+tqdm
+ipykernel
+boto3
+
+# ---- test runner ----
+# ADDED 2026-08-14, and NOT in the image built that day. make_code_tarball.sh keeps
+# code/test/data/*.h5 specifically so `pytest code/test` can run inside the container,
+# and the smoke-test instructions said to do exactly that -- but pytest was never in this
+# file, so it fails with "No module named pytest". Execute nodes have no outbound network
+# and the image is read-only, so it cannot be installed after the fact.
+#
+# This is NOT worth a 30-minute rebuild on its own. The two evaluation test modules are
+# pure numpy/scipy/pandas and are meant to be run wherever you like; the container-side
+# check that actually needs the container is `predict.py --limit 2`, which needs torch and
+# nflows rather than pytest. Pick this up whenever the image is next rebuilt for a real
+# reason.
+pytest

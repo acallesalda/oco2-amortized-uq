@@ -1,0 +1,53 @@
+# @package _global_
+# Deterministic 20-level CO2 profile regressor on the reference-sounding-disjoint split,
+# with the recovered scene covariates and the loss/selection metric aligned to the one
+# Table 2 reports.
+#
+# Two independent changes relative to full_regressor_profiles_grouped.yaml, both switchable
+# so their effects can be separated:
+#
+#   covariates     legacy | legacy_v2 | scene | scene_geo | scene_l1b | acos_informed
+#   loss_weight    std -> unweighted MSE on standardized levels (as published)
+#                  ppm -> per-level weights (sigma_d / mean sigma)^2, i.e. MSE in ppm
+#   select_metric  std | ppm -- which validation RMSE picks the checkpoint
+#
+# Why loss_weight matters here and not for XCO2: the per-level training sigma spans a
+# factor of ~15, so an unweighted standardized MSE and the reported ppm RMSE weight the
+# levels ~200x differently. At D=1 the two coincide up to a constant.
+#
+# Run:
+#   python3 experiments/train/train_profiles.py +experiment=full_regressor_profiles_cov_grouped
+defaults:
+  - override /data: local_simulated_grouped_cov
+
+task: profiles
+target_indices: all
+covariates: scene
+loss_weight: ppm
+select_metric: ppm
+weights_dir: /workspace/project/experiments/weights/group_split_v1/full_regressor_profiles_${covariates}_${loss_weight}
+
+hyps:
+  model: full_regressor_profiles
+  seed: 42
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+  aux_dim: 32
+  lr: 8.0e-4
+  wd: 9.1e-4
+  epochs: 40
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+  out_dim: 20
+
+data:
+  seed: ${hyps.seed}
+
+hydra:
+  run:
+    dir: ${weights_dir}/runs/${now:%Y%m%d_%H%M%S}

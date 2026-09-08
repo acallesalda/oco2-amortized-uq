@@ -1,0 +1,8 @@
+defaults:
+  - data: local_simulated
+  - _self_
+
+
+hydra:
+  searchpath:
+    - pkg://shared_conf

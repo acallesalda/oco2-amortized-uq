@@ -1,0 +1,49 @@
+# CONTROL. Scalar XCO2 flow on the ORIGINAL replicate-level split.
+#
+# Identical to nf_full_regressor_nflows_grouped.yaml except for the split and the
+# statistics. Optional, and it is a NEW number rather than a reproduction: the published
+# scalar flow modelled surface CO2, not XCO2, so there is nothing to
+# reproduce for this row. It exists only so the XCO2 flow has the same
+# replicate-vs-group-disjoint comparison the three deterministic models have.
+#
+# Omitting data.split_csv selects the replicate split; data.stats_dir points at the legacy
+# statistics, which are the ones that split was standardized with.
+#
+# Run:
+#   condor_submit train.sub -a 'job_name = nf_xco2_replicate' -a 'gpu_length = short'
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+  train_size: 0.9
+  stats_dir: /workspace/project/experiments/pipelines/stats
+  target: xco2
+
+weights_dir: /workspace/project/experiments/weights/replicate_control/flow_regressor_nflow
+
+bo:
+  enabled: false
+
+model_cfg_obj:
+  full_backbone:
+    aux_dim: 32
+    embed_dim: 256
+    nhead: 8
+    nlayers: 1
+  nflow:
+    hidden: 384
+    layers: 5
+    bins: 9
+    tail_bound: 6.3108919641
+
+optim:
+  lr: 4.533555957493404e-04
+  wd: 5.387680934037755e-04
+  epochs: 35
+  grad_clip: 1.0
+
+setup:
+  freeze_backbone: false
+  backbone_ckpt: null

@@ -1,0 +1,45 @@
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations_filename: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+  stats_dir: /workspace/project/experiments/pipelines/stats
+
+task:
+  last4: [17, 18, 19, 20]
+  standardize_y: true
+
+model:
+  aux_dim: 32
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+  out_dim: 4
+  pretrained_ckpt: null
+
+nflow:
+  num_layers: 9
+  hidden_features: 256
+  num_bins: 8
+  tail_bound: 6.0
+  min_bin_width: 1.0e-3
+  min_bin_height: 1.0e-3
+  min_derivative: 1.0e-3
+
+optim:
+  lr: 3.0e-4
+  weight_decay: 1.0e-5
+  grad_clip: 5.0
+
+train:
+  device: cuda
+  epochs: 100
+  log_every: 100
+  save_dir: /workspace/project/experiments/weights/flow_regressor_profiles_nf4_bo_warm
+  ckpt_name: _trial_latest.pt
+
+warm_start:
+  enabled: true
+  regressor_ckpt: /workspace/project/experiments/weights/full_regressor_profiles/global_best/net_profiles.pt
+  regressor_hparams: /workspace/project/experiments/weights/full_regressor_profiles/global_best/best_hparams.yaml

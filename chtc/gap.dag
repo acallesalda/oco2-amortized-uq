@@ -1,0 +1,50 @@
+# The generalization gap: the published models scored on the rows they were fit on.
+#
+#     cd chtc && mkdir -p logs && condor_submit_dag gap.dag
+#     ./fetch_results.sh --clean eval_xco2_gap_train eval_last4_gap_train \
+#                                eval_profiles_gap_train
+#
+# WHAT THIS ANSWERS
+# -----------------
+# The question: "aren't there typically model diagnostics that can be used to demonstrate
+# generalization?" The reference-disjoint and time-disjoint experiments answer the
+# question of protocol -- the models are evaluated on scenes and months they never saw.
+# What is still missing is the number an ML reader looks for first: the same metric on the
+# training rows, so the gap between in-sample and out-of-sample can be read off directly
+# instead of inferred.
+#
+# No training happens here. The checkpoints, the standardization constants, the Laplace
+# fit (training partition) and its calibration (validation partition) are all the ones
+# behind Table~\ref{tab:splitcompare}; the only thing that changes is which rows get
+# scored, through EVAL_PARTITION. Each job draws 45 whole reference soundings of the
+# training partition (EVAL_REFS=45 in eval_gap.sub) so its bootstrap standard errors are
+# comparable with the 45 held-out ones.
+#
+# The ACOS L2FP rows are the control. The operational retrieval does not train, so its
+# train-minus-test difference is the difficulty difference between the two partitions --
+# expected to be near zero, since the split table's own variance structure is nearly
+# identical on both sides (experiments/scoring/tables/generalization_partitions.csv:
+# within-scene sd 1.825 vs 1.822 ppm, between-scene 2.558 vs 2.530 ppm). Whatever the two
+# learned models do beyond that is fitting.
+#
+# Three short scoring jobs, no parents, ~20 minutes each.
+#
+# Prerequisites, all already in /staging for the published run (./fetch_results.sh --status):
+#   oco2_processed_{train,test}.tar.gz, oco2_profile_stats.tar.gz   stage_data.sh
+#   oco2_split_v1.tar.gz                                            prep.sub
+#   oco2_covariates_v1.tar.gz                                       covariates.sub
+#   results/<study>_final.tar.gz  for the six studies                bo/final.sub
+
+JOB eval_xco2_gap      eval_gap.sub
+VARS eval_xco2_gap      task="xco2"     det_study="det_xco2"     flow_study="nf_xco2"
+
+JOB eval_last4_gap     eval_gap.sub
+VARS eval_last4_gap     task="last4"    det_study="det_last4"    flow_study="nf_last4"
+
+JOB eval_profiles_gap  eval_gap.sub
+VARS eval_profiles_gap  task="profiles" det_study="det_profiles" flow_study="nf_profiles"
+
+# A failed node should not stop the others; RETRY 0 for the reason given in balanced.dag.
+RETRY ALL_NODES 0
+
+NODE_STATUS_FILE gap.dag.status 30

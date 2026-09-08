@@ -1,0 +1,57 @@
+# Build a month's spectra and its split table against the EXTENSION February.
+#
+#     condor_submit prep_month_ext.sub -a 'month=202003'   # normally via ext.dag
+#
+# Identical to prep_month_full.sub but for OCO2_SPLIT, and the difference is the whole
+# point: the table this writes is `ext_v1`'s train/val rows with the month appended as
+# `test`. That keeps the Laplace refit -- which predict.py performs at scoring time over
+# the TRAINING partition of whatever table it is given -- on the same 447 reference
+# soundings the models were fitted on, and calibrates its aleatoric diagonal on the same 45
+# February validation scenes. Point it at group_split_v1's table instead and the Laplace
+# would be a different object from the one the model was trained beside.
+#
+# The month's own spectra do not depend on the split; only the table does. That is why this
+# and prep_month_full.sub produce byte-identical .npy and differently named archives.
+
+include : site.conf
+include : job_resources.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+executable = prep_month.sh
+arguments  = $(month)
+environment = "OCO2_SPLIT=ext_v1"
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_ext_v1.tar.gz, \
+                       $(OSDF)/OCO2SimUQExpt_$(month).zip
+
+should_transfer_files  = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files  = oco2_month_$(month)_ext.tar.gz
+transfer_output_remaps = "oco2_month_$(month)_ext.tar.gz = $(OSDF)/oco2_month_$(month)_ext.tar.gz"
+
+requirements = $(STAGING_REQ)
+
+stream_output = true
+stream_error  = true
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+# 24 GB is what prep_month_full.sub uses; ext_v1's archive is ~1 GB bigger because it
+# carries the extension's spectra, and the month's own extraction is unchanged.
+DISK_GB = 32
+request_disk   = $(DISK_GB)GB
+
+log    = logs/prep_month_$(month)_ext.log
+output = logs/prep_month_$(month)_ext.out
+error  = logs/prep_month_$(month)_ext.err
+
+max_retries = 0
+queue

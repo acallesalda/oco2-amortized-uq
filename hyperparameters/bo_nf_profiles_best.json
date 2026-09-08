@@ -1,0 +1,53 @@
+{
+  "study": "nf_profiles",
+  "covariates": "scene_prior",
+  "metric": "val_nll",
+  "metric_label": "val NLL",
+  "value": -8.017079235025928,
+  "round": 3,
+  "trial": 0,
+  "trial_epochs": 20,
+  "params": {
+    "model.embed_dim": 128,
+    "model.nhead": 8,
+    "model.nlayers": 1,
+    "nflow.layers": 12,
+    "nflow.hidden": 727,
+    "nflow.bins": 10,
+    "nflow.tail_bound": 9.093477593358227,
+    "optim.lr": 0.0005044800982280605,
+    "optim.wd": 1.7487192681457446e-05,
+    "data.train_batch_size": 128
+  },
+  "overrides": [
+    "data.train_batch_size=128",
+    "model.embed_dim=128",
+    "model.nhead=8",
+    "model.nlayers=1",
+    "nflow.bins=10",
+    "nflow.hidden=727",
+    "nflow.layers=12",
+    "nflow.tail_bound=9.093477593",
+    "optim.lr=0.0005044800982",
+    "optim.wd=1.748719268e-05"
+  ],
+  "n_trials": 25,
+  "n_completed": 25,
+  "n_failed": 0,
+  "selected_utc": "2026-08-20T22:07:30Z",
+  "baseline_value": -6.158118208904309,
+  "baseline_overrides": [
+    "data.train_batch_size=128",
+    "model.embed_dim=256",
+    "model.nhead=8",
+    "model.nlayers=1",
+    "nflow.bins=10",
+    "nflow.hidden=384",
+    "nflow.layers=9",
+    "nflow.tail_bound=8.39101343",
+    "optim.lr=0.0005",
+    "optim.wd=1e-05"
+  ],
+  "improvement_abs": 1.8589610261216194,
+  "search_beat_baseline": true
+}

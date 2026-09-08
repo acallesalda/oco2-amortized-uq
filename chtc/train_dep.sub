@@ -1,0 +1,85 @@
+# Train one flow that warm-starts from a deterministic backbone.
+#
+# Identical to train.sub except that it also pulls in the parent node's result archive
+# and passes its name to train.sh, which unpacks it and refuses to run if the expected
+# .pt is not inside. Used by oco2.dag for nf_profiles (parent det_profiles) and nf_last4
+# (parent det_last4).
+#
+# By hand:
+#     condor_submit train_dep.sub -a 'job_name = nf_profiles' \
+#                                 -a 'dep_tar = det_profiles.tar.gz' \
+#                                 -a 'gpu_length = long'
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe        = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+executable = train.sh
+arguments  = $(job_name) $(dep_tar)
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/results/$(dep_tar)
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = $(job_name).tar.gz
+transfer_output_remaps  = "$(job_name).tar.gz = $(OSDF)/results/$(job_name).tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "$(gpu_length)"
+
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+# Send stdout/stderr back as they are written, not at job end.
+#
+# By default HTCondor buffers a job's output on the execute node and transfers it only on
+# completion, so `tail -f logs/<node>.out` shows nothing for the entire run -- which on a
+# 40-epoch job is hours of not knowing whether it is progressing or wedged. `condor_tail`
+# works without this, but only while the job is alive and only one job at a time.
+#
+# The cost is a trickle of network writes. These jobs emit one line per epoch, so it is
+# nothing; do not copy this to a job that prints per-batch.
+#
+# Pairs with PYTHONUNBUFFERED=1 in job_common.sh: streaming a block-buffered stream would
+# still arrive in 8 KB lumps.
+stream_output = true
+stream_error  = true
+
+log    = logs/$(job_name).log
+output = logs/$(job_name).out
+error  = logs/$(job_name).err
+
+# See the note in train.sub.
+# max_retries = 0, deliberately.
+#
+# ON_EXIT transfers the output archive even when the job exits nonzero, so a failed
+# attempt still uploads <name>.tar.gz to /staging. OSDF then refuses to overwrite it:
+#
+#   Pelican Client Error: remote object already exists, upload aborted
+#
+# and the retry is HELD with a transfer error that says nothing about why the job failed
+# in the first place. A retry here cannot succeed. Clean and resubmit instead:
+#
+#   ./fetch_results.sh --clean $(job_name)
+#   condor_submit train_dep.sub
+max_retries = 0
+
+queue

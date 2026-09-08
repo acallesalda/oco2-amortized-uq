@@ -1,0 +1,39 @@
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+  train_size: 0.9
+
+weights_dir: /workspace/project/experiments/weights/flow_regressor_nflow
+
+model_cfg_path: /workspace/project/code/shared_conf/model/nf_full_regressor.yaml
+
+# You can provide either model_cfg_path (a YAML file) or embed the object here as model_cfg_obj
+model_cfg_obj:
+  full_backbone:
+    aux_dim: 32
+    embed_dim: 256    # or 512 if that’s your best
+    nhead: 8
+    nlayers: 1
+  nflow:
+    hidden: 256
+    layers: 4
+    bins: 8
+    tail_bound: 10.0
+
+optim:
+  lr: 5.0e-4
+  wd: 1.0e-5
+  epochs: 35
+  grad_clip: 1.0
+
+setup:
+  freeze_backbone: false     # set true if you want to keep encoder fixed
+  backbone_ckpt: null        # path to a matching backbone checkpoint if you want to load
+
+bo:
+  enabled: true
+  n_trials: 100
+  timeout: null

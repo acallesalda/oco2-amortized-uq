@@ -1,0 +1,88 @@
+# 20-d profile conditional normalizing flow, trained on the reference-sounding-disjoint
+# split, with BO disabled so the split is the only thing that changes.
+#
+# CORRECTED 2026-08-14. This file previously copied the `nflow` block of nf_profiles.yaml
+# verbatim, on the belief that it held "the configuration selected by Bayesian
+# optimization". It does not. nf_profiles.yaml sets `bo.enabled: true, n_trials: 100`, so
+# its nflow block is the *search default*, and the published checkpoint is the winner of
+# that search -- its `extra` records `trial: 99`. The two disagree:
+#
+#     nflow          nf_profiles.yaml   best_flow_profiles.pt   <- what Table 2 reports
+#     layers                 7                   9
+#     hidden               640                 384
+#     bins                  13                  10
+#     tail_bound          10.0     8.391013429624302
+#
+# The checkpoint's numbers are confirmed twice over: by the `cfg` it stores, and
+# independently by its own tensor shapes. A PiecewiseRationalQuadraticCouplingTransform
+# over 20 dimensions with an alternating mask transforms 10 of them, and with
+# tails="linear" needs 3K-1 parameters each, so the final layer has 10*(3K-1) outputs.
+# dump_checkpoint_config.py measured 290 -> K = 10. The old value of 13 would have been
+# 380.
+#
+# Training the old values would have produced a flow that is not the published
+# architecture, making the group-split-vs-replicate-split difference a comparison of two
+# different models. The whole point of this file is that it is not.
+#
+# NOT recoverable, and therefore still the search defaults below: the winning trial's lr
+# and weight decay. train_nf_profiles.py's save_checkpoint stored only
+# {val_nll, epoch, trial} in `extra`, there is no Optuna study database in the repository,
+# and the mlruns that would have held it are gone. This has to be stated in the
+# paper rather than papered over.
+#
+# Run:
+#   python3 experiments/train/train_nf_profiles.py \
+#       --exp_cfg code/shared_conf/experiment/nf_profiles_grouped.yaml
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+  # NOTE: train_nf_profiles.py reads data.stats_dir unconditionally; nf_profiles.yaml
+  # omits it, which raises KeyError. Kept explicit here.
+  stats_dir: /workspace/project/experiments/pipelines/stats/group_split_v1
+  split_csv: /workspace/project/scratch/simulated/files/splits/group_split_v1.csv
+
+model:
+  # FullRegressorProfiles (context backbone)
+  aux_dim: 32
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+  out_dim: 20
+
+nflow:
+  # From best_flow_profiles.pt's stored cfg; see the header. Do not "restore" these from
+  # nf_profiles.yaml -- those are the BO search defaults, not the trained model.
+  layers: 9
+  hidden: 384
+  bins: 10
+  tail_bound: 8.391013429624302
+  standardize_y: false
+  # The spline clamps are NOT in the checkpoint -- the old save_checkpoint did not store
+  # them -- so these come from nf_profiles.yaml, which is the
+  # config the search ran under and is the best record there is. BO tuned
+  # layers/hidden/bins/tail_bound; there is no sign it touched these.
+  min_bin_width: 0.005
+  min_bin_height: 0.005
+  min_derivative: 0.01
+
+optim:
+  lr: 5.0e-4
+  wd: 1.0e-5
+  epochs: 35
+  grad_clip: 1.0
+
+eval:
+  rmse_samples: 0
+
+setup:
+  freeze_backbone: false
+  # Warm start from the deterministic profile model trained on THIS split.
+  backbone_ckpt: /workspace/project/experiments/weights/group_split_v1/full_regressor_profiles/net_profiles.pt
+
+weights_dir: /workspace/project/experiments/weights/group_split_v1/flow_regressor_profiles
+
+bo:
+  enabled: false

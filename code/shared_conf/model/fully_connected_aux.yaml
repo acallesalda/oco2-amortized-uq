@@ -1,0 +1,7 @@
+_target_: modeling.fully_connected_aux.FullyConnectedAux
+input_dim: 6182
+embed_dim: 256
+hidden_dims:
+  - 512
+  - 256
+

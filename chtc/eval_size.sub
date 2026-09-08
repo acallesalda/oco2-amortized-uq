@@ -1,0 +1,69 @@
+# Score task $(task) on group_split_v1's held-out test partition, from the two models
+# trained on $(size) reference soundings (train_size.sub).
+#
+#     condor_submit eval_size.sub -a 'task = xco2' -a 'size = 90' \
+#         -a 'det_study = det_xco2' -a 'flow_study = nf_xco2'
+#
+# or, over the whole curve:  condor_submit_dag size.dag
+#
+# Identical to chtc/bo/eval.sub except for OCO2_SPLIT, which moves the split table, the
+# standardization constants, the weights directory and the artifact directory together to
+# the size_<k>_v1 family. The test scenes are group_split_v1's, unchanged -- that is what
+# makes the points of the curve comparable with each other and with the published row of
+# Table~\ref{tab:splitcompare}, which is the same experiment at k = 361.
+#
+# `det_study`/`flow_study` are declared by the caller rather than derived here because a
+# mismatched pair does not fail: it scores a different model and produces a plausible
+# number.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+executable = bo_eval.sh
+arguments  = $(task) scene_prior s$(size)
+environment = "OCO2_SPLIT=size_$(size)_v1"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_size_$(size)_v1.tar.gz, \
+                       $(OSDF)/results/$(det_study)_final_s$(size).tar.gz, \
+                       $(OSDF)/results/$(flow_study)_final_s$(size).tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task)_s$(size).tar.gz
+transfer_output_remaps  = "eval_$(task)_s$(size).tar.gz = $(OSDF)/results/eval_$(task)_s$(size).tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task)_s$(size).log
+output = logs/eval_$(task)_s$(size).out
+error  = logs/eval_$(task)_s$(size).err
+
+# max_retries = 0, deliberately -- see train.sub.
+#   ./fetch_results.sh --clean eval_$(task)_s$(size)
+max_retries = 0
+queue

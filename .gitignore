@@ -1,0 +1,79 @@
+code/test/data/extracted
+**/__pycache__
+**/settings.json
+**/outputs/
+log/
+.vscode
+**/.env
+**/multirun
+**.pkl
+**/aux_data/
+**/*.tar.gz
+**.log
+**/runs
+**/*.zarr/*
+*.nc
+*.npz
+*.zip
+**/mlruns/
+# Pipeline outputs (data.out_root); lives in the worktree but must never be committed.
+scratch/
+# Your CHTC NetID lives here. Untracked so that a pull can never reset it;
+# copy chtc/site.conf.example and edit the two lines. See chtc/README.md step 1.
+chtc/site.conf
+
+# Archived HTCondor logs (chtc/status.py --archive). Kept locally, never committed.
+chtc/logs/
+
+# results
+bo25_text/
+latex/
+
+# Per-job metadata that fetch_results.sh unpacks into the repo root.
+run_meta_*.json
+
+# results
+experiments/scoring/tables/
+# The cluster-balanced run's tables, written beside them so that score.py's fixed output
+# names cannot overwrite the published February ones. Regenerated, like tables/, not kept.
+experiments/scoring/tables_bal/
+
+# Files condor_submit_dag generates next to the DAG.
+chtc/*.dag.condor.sub
+chtc/*.dagman.*
+chtc/*.dag.lib.*
+chtc/*.dag.lock
+chtc/*.dag.status
+chtc/*.dag.metrics
+chtc/*.dag.rescue*
+
+# ---------------------------------------------------------------------------------
+# Release and data staging
+# ---------------------------------------------------------------------------------
+# The public snapshot, built by release/make_release.py, and the Zenodo bundles built
+# by scripts/make_zenodo_bundles.py. Both are derived from tracked files and are
+# rebuilt on demand.
+dist/
+
+# What scripts/get_data.sh downloads and where it unpacks it. All of it comes from
+# Zenodo, none of it belongs in git.
+downloads/
+scratch/
+new_data/
+
+# Predictive artifacts and fetched job archives: hundreds of MB each, all rebuildable
+# and all on Zenodo. The `.meta.json` beside each one is NOT ignored -- those are a few
+# kB, they record which checkpoint produced which number, and they are the only thing
+# tying a table in the paper to a specific set of weights.
+experiments/results/
+experiments/scoring/*.npz
+experiments/scoring/results/**/*.npz
+experiments/scoring/**/*.npz
+
+# NOT ignored, though they arguably should be: `experiments/weights/**` (235 MB of the
+# original submission's checkpoints), `group_split_v1_cov.csv` (69 MB) and `log/` are
+# already tracked, so a pattern here would do nothing -- git does not ignore what it
+# already tracks. `release/manifest.txt` excludes all three from the public snapshot,
+# which is where it matters. Untracking them would not shrink a clone either: they are
+# in the history regardless, which is why the public release is a fresh repository
+# rather than this one made public.

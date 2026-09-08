@@ -1,0 +1,60 @@
+# @package _global_
+# THE CONTROL RUN. Near-surface regressor, identical to
+# full_regressor_profiles_last4_grouped.yaml in every respect except the split.
+#
+# Why it exists. On the group-disjoint split det_last4 sits at val_RMSE ~= 0.96 in
+# standardized units while the ACOS baseline on the same validation rows gets 0.784 --
+# i.e. the model is barely better than predicting the training mean (1.0) and worse than
+# the retrieval. Both numbers come from the same `evaluate()` over the same level indices
+# on the same scale, so the comparison is real. What it does not tell us is *why*:
+#
+#   * if the split is the cause, this is the headline result -- the published
+#     numbers were partly memorising reference soundings, and generalisation to unseen
+#     ones is materially worse.
+#   * if the pipeline is the cause -- wrong statistics, a target/index mismatch, a
+#     mis-set learning rate -- then it is a bug and the number means nothing.
+#
+# Those two have completely different consequences for the paper and cannot be told apart
+# from the group-split run alone. This config settles it: same code, same hyperparameters,
+# same seed, replicate-level split. If it lands near the published regime the split is the
+# story; if it also lands near 0.96 we have a bug to find.
+#
+# `data: local_simulated` leaves data.split_csv and data.stats_dir unset, which is what
+# makes this the original experiment: train_profiles.py then draws validation with
+# random_split and standardises with the legacy stats in experiments/pipelines/stats --
+# the same ones the published checkpoints were trained under.
+#
+# Run:
+#   condor_submit train.sub -a 'job_name = det_last4_replicate' -a 'gpu_length = short'
+# ~25 minutes at the 37 s/epoch this model showed on an A100.
+
+task: profiles
+target_indices: last4
+weights_dir: /workspace/project/experiments/weights/replicate_control/full_regressor_profiles_last4
+
+# Identical to the grouped config. Do not tune these -- the whole value of this run is
+# that the split is the only thing that differs.
+hyps:
+  model: full_regressor_profiles
+  seed: 42
+  embed_dim: 320
+  nhead: 4
+  nlayers: 2
+  aux_dim: 32
+  lr: 1.95e-4
+  wd: 4.76e-4
+  epochs: 40
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+  out_dim: 4
+
+data:
+  seed: ${hyps.seed}
+
+hydra:
+  run:
+    dir: ${weights_dir}/runs/${now:%Y%m%d_%H%M%S}

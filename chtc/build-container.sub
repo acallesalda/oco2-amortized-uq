@@ -1,0 +1,54 @@
+# Interactive build job for the OCO-2 Apptainer image.
+#
+#   cd ~/OCO-2/chtc
+#   condor_submit -i build-container.sub
+#   # ... you land in a shell on a build node ...
+#   ./build_sif.sh
+#   exit
+#
+# `condor_submit -i` ignores `executable` and drops you into a shell, so there is no
+# executable line here. The build takes 15-30 minutes, almost all of it pip downloading
+# the ~2.5 GB of torch + vendored CUDA wheels.
+#
+# Do not run `apptainer build` on the access point: it is a shared login node and CHTC
+# asks that heavyweight work go through the scheduler.
+
+# Deliberately does NOT `include : site.conf`, unlike every other submit file here.
+#
+# This job needs exactly one thing from it -- the staging requirement -- and condor_submit
+# warns about every macro an included file defines that the submit file never references.
+# Including site.conf here produced eight "was unused by condor_submit. Is it a typo?"
+# warnings, none of which was a typo, and a submit that always prints warnings is a submit
+# whose warnings nobody reads. build_sif.sh derives the /staging path from `whoami`, so
+# the NetID is not needed here at all.
+#
+# (`warn_on_unused_submit_file_macros` is a *configuration* knob, not a submit command --
+# putting it in a submit file just earns a ninth warning about itself.)
+
+universe = vanilla
+
+# Routes the job to a CHTC build node, which has apptainer and a large scratch disk.
++IsBuildJob = true
+
+requirements = (HasCHTCStaging == true)
+
+# If you ever capture chtc/requirements.lock.txt from a working environment, add it to this list -- the
+# def file copies it in, and build_sif.sh only fabricates an empty placeholder when it is
+# genuinely absent. It is not listed by default because condor_submit refuses to submit
+# when a named input file does not exist.
+transfer_input_files = oco2-gpu.def, requirements.txt, build_sif.sh
+
+# Without this, exiting the job would drag the whole apptainer build cache back into
+# /home. build_sif.sh copies the finished .sif to /staging itself; this is the fallback
+# path for the case where the build node cannot write there directly.
+transfer_output_files = oco2-gpu.sif
+
+log    = logs/build.log
+output = logs/build.out
+error  = logs/build.err
+
+request_cpus   = 4
+request_memory = 16GB
+request_disk   = 64GB
+
+queue

@@ -1,0 +1,43 @@
+# config_profiles_last4_bo.yaml
+defaults:
+  - override hydra/sweeper: optuna
+
+data:
+  files: /workspace/project/scratch/simulated/files     # folder with train/ and test/
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+
+model:
+  _target_: modeling.full_regressor_profiles.FullRegressorProfiles
+  aux_dim: 32
+  embed_dim: 256
+  nhead: 8
+  nlayers: 1
+  out_dim: 4              # ignored by script; will be overridden to len(target_indices)
+
+target_indices: last4
+
+hyps:
+  epochs: 25
+  lr: 3.0e-4
+  wd: 3.0e-4
+  seed: 42
+
+# where best weights (state_dict only) will be copied when improved
+weights_dir: /workspace/project/experiments/weights/full_regressor_profiles_last4
+
+hydra:
+  sweeper:
+    direction: minimize
+    study_name: fr_last4_bo
+    n_trials: 100
+    sampler:
+      _target_: optuna.samplers.TPESampler
+    params:
+      hyps.lr: interval(1e-4, 2e-3)
+      hyps.wd: interval(1e-6, 1e-3)
+      model.embed_dim: choice(192, 256, 320)
+      model.nlayers: choice(1, 2, 3)
+      model.nhead: choice(4, 8)

@@ -1,0 +1,116 @@
+Bootstrap: docker
+From: nvidia/cuda:12.3.1-runtime-ubuntu22.04
+
+# Apptainer image for the OCO-2 amortized retrieval experiments on CHTC.
+#
+# Base matches the development machine (nvidia/cuda:12.3.1-*-ubuntu22.04) but uses the `runtime` flavour
+# rather than `devel`: nothing in the requirements compiles CUDA sources, and dropping
+# nvcc takes several GB off a .sif that gets shipped to every execute node. The CUDA
+# runtime in the base image is not actually what torch links against -- the cu121 pip
+# wheels vendor their own libcudart/cudnn/cublas -- it is here so that nvidia-smi and the
+# usual diagnostics work inside the container.
+#
+# Build (see chtc/README.md step 3):
+#     condor_submit -i chtc/build-container.sub
+#     ./build_sif.sh
+#
+# GPU capability: the cu121 wheels carry SASS for sm_50 through sm_90. They will NOT run
+# on Blackwell (sm_100/sm_120). The submit files pin gpus_maximum_capability = 9.0 to
+# keep the matchmaker away from cards this image cannot use.
+
+%files
+    requirements.txt /opt/oco2/requirements.txt
+    # build_sif.sh guarantees this exists, creating it empty when there is no lock to use.
+    # %files has no conditional form, and a missing file here fails the whole build --
+    # which is why the lock-file path in %post tests for a NON-EMPTY file rather than a
+    # present one.
+    requirements.lock.txt /opt/oco2/requirements.lock.txt
+
+%post
+    set -eu
+    export DEBIAN_FRONTEND=noninteractive
+
+    # ---------------------------------------------------------------------------------
+    # apt, inside an unprivileged (fakeroot) Apptainer build
+    # ---------------------------------------------------------------------------------
+    # By default apt drops privileges to the `_apt` user (uid 100) for downloads and for
+    # apt-key. In a user-namespace build uid 100 is not mapped, so it lands on the
+    # overflow uid, and the first thing it does -- write a temporary config into /tmp,
+    # which Apptainer has bind-mounted from the host -- fails:
+    #
+    #   Couldn't create temporary file /tmp/apt.conf.XXXXXX for passing config to apt-key
+    #   E: The repository '...' is not signed.
+    #
+    # apt then exits 100 and the build dies with "%post section: exit status 100". The
+    # signatures are fine; nothing could read them. Telling apt not to drop privileges is
+    # the fix -- inside the namespace we are already root, and fakeroot maps that back to
+    # the invoking user, so the writes succeed and the signatures are checked normally.
+    #
+    # This is NOT the same as disabling signature verification, and it must not become
+    # that: never "fix" a repeat of this with AllowInsecureRepositories.
+    mkdir -p /etc/apt/apt.conf.d
+    printf 'APT::Sandbox::User "root";\n' > /etc/apt/apt.conf.d/00-no-sandbox-user
+    # Belt and braces for the case where /tmp comes from the image rather than the host.
+    mkdir -p /tmp && chmod 1777 /tmp || true
+
+    apt-get update -qq
+    apt-get install -y --no-install-recommends \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-venv \
+        ca-certificates \
+        git \
+        curl \
+        procps \
+        libgl1 \
+        libglib2.0-0
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+    python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel
+
+    # Prefer an exact lock if one was captured from the development machine; fall back to the constraints.
+    # `-s` (non-empty), not `-f`: build_sif.sh ships an empty placeholder when there is no
+    # real lock file, because %files cannot be made conditional.
+    if [ -s /opt/oco2/requirements.lock.txt ]; then
+        echo "=== installing from requirements.lock.txt (exact pinned versions) ==="
+        python3 -m pip install --no-cache-dir -r /opt/oco2/requirements.lock.txt
+    else
+        echo "=== installing from requirements.txt (constraints; see the note in it) ==="
+        python3 -m pip install --no-cache-dir -r /opt/oco2/requirements.txt
+    fi
+
+    # Mount points. HTCondor maps the job scratch directory onto /workspace/project via
+    # container_target_dir, and unprivileged Apptainer cannot always mkdir inside a
+    # read-only image, so the directories have to exist here.
+    mkdir -p /workspace/project /workspace/data
+
+    # Record what actually got installed. Read it back later with
+    #   apptainer exec oco2-gpu.sif cat /opt/oco2/pip-freeze.txt
+    python3 -m pip freeze > /opt/oco2/pip-freeze.txt
+    python3 -c "import torch, numpy, pandas; print('torch', torch.__version__, '| numpy', numpy.__version__, '| pandas', pandas.__version__)"
+
+%environment
+    export PYTHONNOUSERSITE=1
+    export MPLBACKEND=Agg
+    # Keep the HDF5/BLAS thread pools from fighting the DataLoader workers for the cores
+    # HTCondor actually gave us. train.sh overrides these with the real request_cpus.
+    export OMP_NUM_THREADS=1
+    export HDF5_USE_FILE_LOCKING=FALSE
+
+%runscript
+    exec /bin/bash "$@"
+
+%labels
+    Project OCO-2 amortized probabilistic retrieval
+    Base nvidia/cuda:12.3.1-runtime-ubuntu22.04
+    Torch 2.1.2+cu121
+
+%help
+    Container for the OCO-2 XCO2 retrieval experiments.
+
+    Self-test:
+        apptainer exec --nv oco2-gpu.sif python3 -c \
+            "import torch, laplace, nflows, xarray, hydra; \
+             print(torch.__version__, torch.cuda.is_available())"

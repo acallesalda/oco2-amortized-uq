@@ -1,0 +1,37 @@
+# /workspace/project/code/shared_conf/experiment/nf_full_regressor_nflows_best.yaml
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+  train_size: 0.9
+
+weights_dir: /workspace/project/experiments/weights/flow_regressor_nflow
+
+# Disable BO
+bo:
+  enabled: false
+
+# Put the BEST hyperparams here
+model_cfg_obj:
+  full_backbone:
+    aux_dim: 32
+    embed_dim: 256
+    nhead: 8
+    nlayers: 1
+  nflow:
+    hidden: 384
+    layers: 5
+    bins: 9
+    tail_bound: 6.3108919641
+
+optim:
+  lr: 4.533555957493404e-04
+  wd: 5.387680934037755e-04
+  epochs: 50
+  grad_clip: 1.0
+
+setup:
+  freeze_backbone: false
+  backbone_ckpt: null

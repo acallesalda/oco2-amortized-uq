@@ -1,0 +1,63 @@
+# Template for chtc/site.conf, which is NOT tracked by git.
+#
+#     cp chtc/site.conf.example chtc/site.conf
+#     $EDITOR chtc/site.conf          # set NETID and NETID_LETTER
+#     python3 chtc/check_submit_macros.py
+#
+# It is untracked on purpose. site.conf used to be committed with NETID = CHANGEME, so
+# every pull that touched the file reset your NetID, and a job submitted afterwards spent
+# a minute in the queue before dying with
+#
+#     Permission denied ... URL file = osdf:///chtc/staging/c/CHANGEME/oco2/...
+#
+# which is an obscure way to be told to edit one line. That happened three times.
+# Untracking the file means a pull can never overwrite your NetID again, and
+# check_submit_macros.py refuses to pass while it still says CHANGEME.
+#
+# ---------------------------------------------------------------------------------
+#
+# NETID          your UW NetID (the name you log in with)
+# NETID_LETTER   the first letter of it -- /staging is sharded alphabetically, so NetID
+#                `bucky` lives in /staging/b/bucky
+#
+# ---------------------------------------------------------------------------------
+# Why the configuration is in three files
+# ---------------------------------------------------------------------------------
+# condor_submit warns about every macro a submit file defines and never references, and
+# an included file counts as part of the submit file. One shared config across nine jobs
+# therefore means a warning on every job that does not happen to use all of it -- and a
+# submit that always warns is a submit whose warnings nobody reads, which is how a real
+# typo gets through. So each file holds exactly one thing, and jobs include what they use:
+#
+#   site.conf             identity and /staging paths      every job that touches staging
+#   job_resources.conf    CPUs, memory, scratch disk       jobs that unpack the dataset
+#   gpu_constraints.conf  which cards the image can drive  jobs that ask for a GPU
+#
+#   build-container.sub includes none of them; audit.sub and reprocess.sub take only this
+#   one, because they size themselves (8 GB and 100 GB respectively).
+#
+# `python3 chtc/check_submit_macros.py` checks the whole arrangement offline and should
+# report every file clean. If it does not, fix the layout rather than adding an exception.
+
+NETID        = CHANGEME
+NETID_LETTER = c
+
+# ---------------------------------------------------------------------------------
+# Derived paths. Leave these alone.
+# ---------------------------------------------------------------------------------
+# OSDF path, for transfer_input_files / container_image / transfer_output_remaps.
+# CHTC routes 1-30 GB files through OSDF; everything we move is in that range.
+# This is also what consumes NETID and NETID_LETTER -- they have no other reader here.
+OSDF         = osdf:///chtc/staging/$(NETID_LETTER)/$(NETID)/oco2
+
+# The container. Built once by build-container.sub, then reused by every job.
+SIF          = $(OSDF)/oco2-gpu.sif
+
+# Machines that can reach /staging. Required whenever OSDF or file:///staging is used.
+STAGING_REQ  = (HasCHTCStaging == true)
+
+# The plain filesystem path is deliberately NOT defined here. No submit file ever used
+# it, so it was pure warning noise; stage_data.sh, build_sif.sh, audit.sh and
+# fetch_results.sh each derive it from `whoami`, which is the only place it is needed:
+#
+#     /staging/<first letter of netid>/<netid>/oco2

@@ -1,0 +1,61 @@
+# Build ONE learning-curve subset of group_split_v1's training partition as a table, with
+# statistics and covariates.
+#
+#     condor_submit prep_size.sub -a 'size = 90'
+#
+# or, for the whole curve at once:  condor_submit_dag size.dag
+#
+# CPU only and small: it reads two CSVs out of two existing archives and never extracts a
+# spectrum, so it wants one core and starts quickly. It is a root node of size.dag -- the
+# training jobs for its k read the archive this produces.
+#
+# The table keeps group_split_v1's 45 validation and 45 test scenes exactly as they are and
+# subsamples only the training partition, to k whole reference soundings, stratified by
+# cluster and nested across k. Statistics and covariate encodings ARE recomputed, because
+# the training rows are what changed.
+#
+# The split name is derived from `size` inside prep_size.sh.
+
+include : site.conf
+
+universe       = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+executable = prep_size.sh
+arguments  = $(size)
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz
+
+should_transfer_files  = YES
+when_to_transfer_output = ON_EXIT
+
+# One archive, holding the split table, its statistics AND the augmented table --
+# job_common.sh's oco2_unpack_split knows to expect all three here for this split family.
+transfer_output_files  = oco2_size_$(size)_v1.tar.gz
+transfer_output_remaps = "oco2_size_$(size)_v1.tar.gz = $(OSDF)/oco2_size_$(size)_v1.tar.gz"
+
+requirements = $(STAGING_REQ)
+
+stream_output = true
+stream_error  = true
+
+# Self-sized rather than including job_resources.conf, as prep_full_feb.sub is: this job
+# opens no spectrum. All it ever holds is the container, two archives it deletes as it
+# reads them, and a few hundred MB of CSV.
+request_cpus   = 1
+request_memory = 8GB
+request_disk   = 12GB
+
+log    = logs/prep_size_$(size).log
+output = logs/prep_size_$(size).out
+error  = logs/prep_size_$(size).err
+
+# max_retries = 0, deliberately -- see prep_full_feb.sub.
+#   ./fetch_results.sh --clean prep_size_$(size)
+max_retries = 0
+
+queue

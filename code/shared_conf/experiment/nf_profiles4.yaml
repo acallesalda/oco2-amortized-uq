@@ -1,0 +1,40 @@
+data:
+  root: "/workspace/project/scratch/simulated/files"
+  annotations_filename: "aux_data.csv"
+  stats_dir: "/workspace/project/experiments/pipelines/stats"
+  seed: 42
+  train_batch_size: 128
+  val_batch_size: 256
+
+task:
+  last4: [16, 17, 18, 19]
+  standardize_y: false
+
+model:
+  aux_dim: 32
+  embed_dim: 256
+  nhead: 4
+  nlayers: 1
+  out_dim: 4
+
+nflow:
+  num_layers: 9
+  hidden_features: 384
+  num_bins: 8
+  tail_bound: 8.0
+  min_bin_width: 0.005
+  min_bin_height: 0.005
+  min_derivative: 0.001
+
+optim:
+  lr: 0.002
+  weight_decay: 0.000001
+  grad_clip: 1.0
+
+train:
+  device: "cuda"
+  epochs: 20
+  save_dir: "/workspace/project/experiments/weights/nf4_native"
+  ckpt_name: "ckpt_best.pt"
+  log_every: 50
+

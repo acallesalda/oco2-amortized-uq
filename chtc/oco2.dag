@@ -1,0 +1,91 @@
+# All six group-split models, in dependency order.
+#
+#     condor_submit_dag oco2.dag
+#     condor_q -dag
+#     tail -f oco2.dag.dagman.out
+#
+# Shape of the graph:
+#
+#                              prep
+#                (split table + training-only statistics)
+#                                |
+#           +---------+----------+----------+-----------+
+#           |         |          |          |
+#       det_xco2  det_profiles  det_last4  nf_xco2        <- run concurrently
+#                     |          |
+#                 nf_profiles  nf_last4                   <- warm start from the backbone
+#
+# Four GPUs at once in the middle layer, then two. On a quiet day that is roughly the
+# wall time of the slowest single model plus the slowest flow, rather than the sum of all
+# six, which is the entire reason for moving off a two-GPU box.
+#
+# DAGMan restarts from a rescue file, so if one node fails you fix it and re-run the same
+# command -- the completed nodes are not repeated:
+#     condor_submit_dag oco2.dag          # picks up oco2.dag.rescue001 automatically
+
+# ---------------------------------------------------------------------------------
+# Nodes
+# ---------------------------------------------------------------------------------
+JOB prep prep.sub
+
+JOB det_xco2     train.sub
+JOB det_profiles train.sub
+JOB det_last4    train.sub
+JOB nf_xco2      train.sub
+
+JOB nf_profiles  train_dep.sub
+JOB nf_last4     train_dep.sub
+
+# ---------------------------------------------------------------------------------
+# Per-node variables
+# ---------------------------------------------------------------------------------
+# gpu_length is CHTC's GPU Lab duration class: "short" <= 12 h, "medium" <= 24 h,
+# "long" <= 7 days. Shorter classes match more slots and start sooner, so ask for the
+# smallest one the run fits in. The epoch counts come from the *_grouped.yaml configs:
+# 25 for the scalar regressor, 40 for the profile regressors, 35-50 for the flows, and
+# 100 for the near-surface flow -- which is the only one that needs "long".
+
+VARS det_xco2     job_name="det_xco2"     gpu_length="short"
+VARS det_profiles job_name="det_profiles" gpu_length="medium"
+VARS det_last4    job_name="det_last4"    gpu_length="medium"
+VARS nf_xco2      job_name="nf_xco2"      gpu_length="medium"
+
+VARS nf_profiles  job_name="nf_profiles"  gpu_length="medium" dep_tar="det_profiles.tar.gz"
+# nf_last4 was "long" for 100 epochs. The checkpoint audit put it back to the published
+# 50 (see nf_profiles4_grouped.yaml), so "medium" fits and will match a slot sooner.
+VARS nf_last4     job_name="nf_last4"     gpu_length="medium" dep_tar="det_last4.tar.gz"
+
+# ---------------------------------------------------------------------------------
+# Edges
+# ---------------------------------------------------------------------------------
+PARENT prep         CHILD det_xco2 det_profiles det_last4 nf_xco2
+
+# nf_profiles_grouped.yaml sets
+#   setup.backbone_ckpt: .../group_split_v1/full_regressor_profiles/net_profiles.pt
+# and nf_profiles4_grouped.yaml sets
+#   model.pretrained_ckpt: .../group_split_v1/full_regressor_profiles_last4/net_profiles.pt
+# Both are produced by their parent node here. nf_xco2 has backbone_ckpt: null and so
+# hangs off prep directly.
+PARENT det_profiles CHILD nf_profiles
+PARENT det_last4    CHILD nf_last4
+
+# ---------------------------------------------------------------------------------
+# Throttles
+# ---------------------------------------------------------------------------------
+# Nothing here is large by CHTC standards, but keeping the GPU footprint modest keeps us
+# in the good graces of the shared GPU Lab pool.
+MAXJOBS GPU 4
+CATEGORY det_xco2     GPU
+CATEGORY det_profiles GPU
+CATEGORY det_last4    GPU
+CATEGORY nf_xco2      GPU
+CATEGORY nf_profiles  GPU
+CATEGORY nf_last4     GPU
+
+# A machine-readable snapshot of node states, refreshed every 30 s. Handy when you are
+# checking on a run from your phone:  grep -A2 'Node ' oco2.dag.status
+#
+# DAGMan already keeps going after a node fails -- it only stops descending into that
+# node's children -- and writes oco2.dag.rescue001 listing what is left. So a failure in,
+# say, det_last4 still lets the other three deterministic models and nf_profiles finish.
+NODE_STATUS_FILE oco2.dag.status 30

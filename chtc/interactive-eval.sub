@@ -1,0 +1,76 @@
+# A GPU shell with the trained checkpoints attached, for debugging the scoring code.
+#
+#     condor_submit -i interactive-eval.sub \
+#         -a 'det_tar = det_profiles.tar.gz' -a 'flow_tar = nf_profiles.tar.gz'
+#
+# This is the answer to "can we just evaluate interactively". You can, and for *debugging*
+# you should -- but not for producing the numbers. An interactive job is capped at a few
+# hours, nothing is transferred back from it (`transfer_output_files = ""` below, as in
+# interactive.sub), and a result that exists only in the scrollback of an SSH session is
+# not a result. Use this to find out that a checkpoint path is wrong in two minutes
+# instead of in a forty-minute batch job, then submit eval.dag.
+#
+# Once you have a shell:
+#
+#     source ./job_common.sh
+#     oco2_gpu_check
+#     oco2_setup
+#     oco2_unpack_data
+#     oco2_unpack_split
+#     oco2_unpack_results "$DET_TAR" "$FLOW_TAR"     # names as passed above
+#
+#     # two batches, everything else real: catches wrong paths, wrong architectures,
+#     # missing ACOS covariances, and shape errors, in about a minute.
+#     python3 experiments/scoring/predict.py --task profiles --limit 2 \
+#         --files-root   "$FILES_DIR" \
+#         --split-csv    "$FILES_DIR/splits/group_split_v1.csv" \
+#         --stats-dir    "$STATS_DIR/group_split_v1" \
+#         --weights-root "$WEIGHTS_ROOT" \
+#         --out /tmp/smoke.npz
+#     python3 experiments/scoring/score.py /tmp/smoke.npz --out /tmp/tables
+#
+# The one number worth reading in that output is the fraction of ACOS covariances found.
+# If it is near zero, the split table's source_dir column is not reaching evals/acos.py
+# and the baseline column of the table would have been computed on a handful of soundings.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe        = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+transfer_input_files = job_common.sh, \
+                       eval.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/results/$(det_tar), \
+                       $(OSDF)/results/$(flow_tar)
+
+# Nothing comes back from a scratch shell. Copy anything you want to keep to /staging
+# yourself before exiting.
+transfer_output_files = ""
+
+requirements = $(STAGING_REQ)
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+# Same resources the real eval jobs get, so a smoke test here is a smoke test of that.
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+log    = logs/interactive_eval.log
+output = logs/interactive_eval.out
+error  = logs/interactive_eval.err
+
+queue

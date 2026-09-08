@@ -1,0 +1,32 @@
+# The scalar surface task: train the two models that predict CO2 at pressure level 20.
+#
+#     condor_submit_dag last1.dag
+#
+# Its own graph rather than two more nodes in oco2.dag, for the same reason eval.dag is
+# separate: oco2.dag has already run, and re-submitting it to pick up two new nodes means
+# either editing a finished DAG or working around a rescue file. These two depend only on
+# `prep` -- the split table and the training-only statistics -- which is already in
+# /staging, so there is nothing left to wait for.
+#
+#     det_last1   full_regressor_profiles_last1_grouped.yaml   40 epochs, 1 output
+#     nf_last1    nf_nflows_surface_grouped.yaml               35 epochs, 1-d spline flow
+#
+# They are independent of each other: unlike nf_profiles and nf_last4, the surface flow
+# does not warm-start from the deterministic model (see the config's `setup` block), so
+# both start immediately and the wall time is the slower of the two.
+#
+# Prerequisite: prep must have run, i.e. these must exist in /staging:
+#     oco2_split_v1.tar.gz, oco2_profile_stats.tar.gz
+# Check with: ./fetch_results.sh --status
+
+JOB det_last1 train.sub
+JOB nf_last1  train.sub
+
+VARS det_last1 job_name="det_last1" gpu_length="medium"
+VARS nf_last1  job_name="nf_last1"  gpu_length="medium"
+
+MAXJOBS GPU 2
+CATEGORY det_last1 GPU
+CATEGORY nf_last1  GPU
+
+NODE_STATUS_FILE last1.dag.status 30

@@ -1,0 +1,76 @@
+# A coarse hyperparameter search on the reference-sounding-disjoint split.
+#
+#     python3 make_sweep_grid.py                     # once; the grids are committed
+#     condor_submit sweep.sub -a 'grid = det_last4'
+#     condor_submit sweep.sub -a 'grid = det_profiles'
+#
+# 16 trials per model, 20 epochs each, four at a time -- about an hour of wall clock per
+# model. Collect with:
+#
+#     ./fetch_results.sh --sweep
+#     python3 chtc/collect_sweep.py
+#
+# Why this exists. The published hyperparameters were selected by Optuna ON THE REPLICATE
+# SPLIT. Reporting "the model no longer beats ACOS on the group-disjoint split" while using
+# exactly those values invites the obvious objection that we never retuned. This closes
+# that, whichever way it lands.
+#
+# Each trial writes to its own output name, so unlike the training jobs these can be
+# re-run without ./fetch_results.sh --clean.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe        = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+executable = sweep.sh
+arguments  = $(base) $(trial) $(overrides)
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = sweep_$(base)_$(trial).tar.gz
+transfer_output_remaps  = "sweep_$(base)_$(trial).tar.gz = $(OSDF)/results/sweeps/sweep_$(base)_$(trial).tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/sweep_$(base)_$(trial).log
+output = logs/sweep_$(base)_$(trial).out
+error  = logs/sweep_$(base)_$(trial).err
+
+# Keep the shared GPU Lab happy: a handful of these at once, not sixteen.
+#
+# `max_idle` throttles late materialization -- HTCondor keeps at most this many of the
+# queued jobs idle, materializing more as they start. Chosen over `concurrency_limits`
+# deliberately: a concurrency limit name that the pool has not configured can be capped by
+# CONCURRENCY_LIMIT_DEFAULT, and if that is small the jobs sit idle forever with no
+# explanation. The worst case for an unrecognized `max_idle` is that it is ignored and all
+# 16 queue at once, which is merely impolite rather than a silent hang.
+max_idle = 4
+
+max_retries = 0
+
+queue base, trial, overrides from sweeps/$(grid).txt

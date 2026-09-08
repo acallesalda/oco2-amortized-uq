@@ -1,0 +1,68 @@
+# @package _global_
+# Conditional flow for scalar XCO2 on the replicate-level split, with covariates.
+#
+# GENERATED TWIN of code/shared_conf/experiment/nf_full_regressor_nflows_cov_grouped.yaml. The two configs are identical
+# except for the split they read: the table, the statistics directory and the weights
+# directory. Nothing about the architecture, the optimizer, the epoch count or the
+# covariate preset differs, because the whole purpose of this file is to make "the split"
+# the only difference between two columns of the revision's main table.
+#
+# code/test/test_replicate_configs.py asserts that, key by key. If you change a
+# hyperparameter here, change it in the grouped twin too or the test will say so.
+#
+# The split is the ORIGINAL replicate-level partition, written out as a table by
+# experiments/pipelines/make_replicate_split.py: every reference sounding appears in all
+# three partitions, and the test partition is exactly the published one. This is the
+# within-reference interpolation experiment reported as the secondary result -- trained with the
+# corrected covariates and the same search protocol as the group split, so that the pair
+# is a controlled comparison rather than two unrelated runs.
+
+covariates: scene_prior
+
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+  train_size: 0.9          # ignored when split_csv is set (val comes from the table)
+  stats_dir: /workspace/project/experiments/pipelines/stats/replicate_split_v1
+  split_csv: /workspace/project/scratch/simulated/files/splits/replicate_split_v1_cov.csv
+  # What this flow models. `xco2` is the column average -- the quantity Table 1 is about,
+  # and the one its Laplace and ACOS rows report.
+  #
+  # train_nf.py's default is `surface`, which is what it has always silently done: load the
+  # PROFILE dataset and take level 20. That made Table 1's NF row a different target from
+  # its other two rows, standardized by a different constant, on differently preprocessed
+  # inputs.
+  #
+  # Set explicitly here rather than relying on the default, because the default is chosen
+  # to preserve old behaviour, not to be correct.
+  target: xco2
+
+weights_dir: /workspace/project/experiments/weights/replicate_split_v1/flow_regressor_nflow
+
+bo:
+  enabled: false
+
+model_cfg_obj:
+  full_backbone:
+    aux_dim: 32
+    embed_dim: 256
+    nhead: 8
+    nlayers: 1
+  nflow:
+    hidden: 384
+    layers: 5
+    bins: 9
+    tail_bound: 6.3108919641
+
+optim:
+  lr: 4.533555957493404e-04
+  wd: 5.387680934037755e-04
+  epochs: 35        # was 50; the checkpoint's extra says 35
+  grad_clip: 1.0
+
+setup:
+  freeze_backbone: false
+  backbone_ckpt: null

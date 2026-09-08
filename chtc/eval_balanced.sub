@@ -1,0 +1,70 @@
+# Score task $(task) on the held-out test partition, from the two CLUSTER-BALANCED
+# retrains (train_balanced.sub).
+#
+#     condor_submit eval_balanced.sub -a 'task = last4' \
+#         -a 'det_study = det_last4' -a 'flow_study = nf_last4'
+#
+# or, with the six retrains, as one graph:  condor_submit_dag balanced.dag
+#
+# Identical to chtc/bo/eval.sub except for OCO2_BALANCED=1, which points bo_eval.sh at
+# `<study>_final_bal.tar.gz` and at the `_bal` weights directory instead of the published
+# winners', and for the `bo_bal` tag, which names the artifact eval_$(task)_bo_bal so it
+# cannot land on top of the published one. Same split, same test scenes, same Laplace
+# calibration partition -- so the two artifacts are directly differenceable.
+#
+# `det_study`/`flow_study` are declared by the caller rather than derived here because a
+# mismatched pair does not fail: it scores a different model and produces a plausible
+# number. The pairs are the same ones chtc/bo/bo_all.dag uses.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+executable = bo_eval.sh
+arguments  = $(task) scene_prior bo_bal
+environment = "OCO2_SPLIT=group_split_v1 OCO2_BALANCED=1"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/results/$(det_study)_final_bal.tar.gz, \
+                       $(OSDF)/results/$(flow_study)_final_bal.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task)_bo_bal.tar.gz
+transfer_output_remaps  = "eval_$(task)_bo_bal.tar.gz = $(OSDF)/results/eval_$(task)_bo_bal.tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task)_bo_bal.log
+output = logs/eval_$(task)_bo_bal.out
+error  = logs/eval_$(task)_bo_bal.err
+
+# max_retries = 0, deliberately -- see train.sub.
+#   ./fetch_results.sh --clean eval_$(task)_bo_bal
+max_retries = 0
+queue

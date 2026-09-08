@@ -1,0 +1,108 @@
+# The covariate comparison: one factor at a time, no hyperparameter search.
+#
+#     condor_submit_dag covariates.dag
+#
+# This is step 1 of two. It answers "what do the recovered covariates buy?" with the
+# published hyperparameters held fixed, so the answer is attributable to the covariates
+# and not to retuning. Step 2 is the Bayesian optimization (chtc/bo/*.dag), run afterwards
+# on whichever covariate set wins here.
+#
+# Prerequisites, all in /staging:
+#   oco2_processed_{train,test}.tar.gz, oco2_profile_stats.tar.gz   ./stage_data.sh
+#   oco2_split_v1.tar.gz                                           condor_submit prep.sub
+#   oco2_covariates_v1.tar.gz                                      condor_submit covariates.sub
+#
+# Check they are there before submitting:
+#     ./fetch_results.sh --status
+#
+# of wall clock. Every one of them is a leaf -- nothing warm-starts from these -- so a
+# single failure costs one job, not the graph.
+#
+# What each suffix changes (the table also lives in train.sh, which is what reads it):
+#
+#   _base2     legacy covariates, standardized loss   the control: must reproduce the
+#                                                     det_* numbers, or the merge moved them
+#   _ppm       legacy covariates, ppm-weighted loss   metric alignment alone
+#   _covctl    the same four, new encoder             encoding change alone
+#   _cov       + viewing geometry, prior psfc         the recovered prior covariates
+#   _covacos   + ACOS's own retrieval output          a post-processor of ACOS, not an
+#                                                     independent retrieval -- label it so
+#
+# det_xco2 has no _ppm variant: at D=1 the ppm and standardized metrics differ by a
+# constant and the ranking cannot change.
+# 21 independent GPU jobs, four at a time, 20-40 minutes each.
+
+
+JOB det_xco2_base2     train_cov.sub
+JOB det_xco2_covctl    train_cov.sub
+JOB det_xco2_covfix    train_cov.sub
+JOB det_xco2_cov       train_cov.sub
+JOB det_xco2_covprior  train_cov.sub
+JOB det_xco2_covgeo    train_cov.sub
+JOB det_xco2_covacos   train_cov.sub
+
+JOB det_profiles_base2     train_cov.sub
+JOB det_profiles_ppm       train_cov.sub
+JOB det_profiles_covctl    train_cov.sub
+JOB det_profiles_covfix    train_cov.sub
+JOB det_profiles_cov       train_cov.sub
+JOB det_profiles_covprior  train_cov.sub
+JOB det_profiles_covgeo    train_cov.sub
+
+JOB det_last4_base2     train_cov.sub
+JOB det_last4_ppm       train_cov.sub
+JOB det_last4_covctl    train_cov.sub
+JOB det_last4_covfix    train_cov.sub
+JOB det_last4_cov       train_cov.sub
+JOB det_last4_covprior  train_cov.sub
+JOB det_last4_covgeo    train_cov.sub
+
+VARS det_xco2_base2     job_name="det_xco2_base2" gpu_length="short"
+VARS det_xco2_covctl    job_name="det_xco2_covctl" gpu_length="short"
+VARS det_xco2_covfix    job_name="det_xco2_covfix" gpu_length="short"
+VARS det_xco2_cov       job_name="det_xco2_cov" gpu_length="short"
+VARS det_xco2_covprior  job_name="det_xco2_covprior" gpu_length="short"
+VARS det_xco2_covgeo    job_name="det_xco2_covgeo" gpu_length="short"
+VARS det_xco2_covacos   job_name="det_xco2_covacos" gpu_length="short"
+
+VARS det_profiles_base2     job_name="det_profiles_base2" gpu_length="medium"
+VARS det_profiles_ppm       job_name="det_profiles_ppm" gpu_length="medium"
+VARS det_profiles_covctl    job_name="det_profiles_covctl" gpu_length="medium"
+VARS det_profiles_covfix    job_name="det_profiles_covfix" gpu_length="medium"
+VARS det_profiles_cov       job_name="det_profiles_cov" gpu_length="medium"
+VARS det_profiles_covprior  job_name="det_profiles_covprior" gpu_length="medium"
+VARS det_profiles_covgeo    job_name="det_profiles_covgeo" gpu_length="medium"
+
+VARS det_last4_base2     job_name="det_last4_base2" gpu_length="medium"
+VARS det_last4_ppm       job_name="det_last4_ppm" gpu_length="medium"
+VARS det_last4_covctl    job_name="det_last4_covctl" gpu_length="medium"
+VARS det_last4_covfix    job_name="det_last4_covfix" gpu_length="medium"
+VARS det_last4_cov       job_name="det_last4_cov" gpu_length="medium"
+VARS det_last4_covprior  job_name="det_last4_covprior" gpu_length="medium"
+VARS det_last4_covgeo    job_name="det_last4_covgeo" gpu_length="medium"
+
+# Four at a time. The GPU Lab is shared.
+MAXJOBS GPU 4
+CATEGORY det_xco2_base2           GPU
+CATEGORY det_xco2_covctl          GPU
+CATEGORY det_xco2_covfix          GPU
+CATEGORY det_xco2_cov             GPU
+CATEGORY det_xco2_covprior        GPU
+CATEGORY det_xco2_covgeo          GPU
+CATEGORY det_xco2_covacos         GPU
+CATEGORY det_profiles_base2       GPU
+CATEGORY det_profiles_ppm         GPU
+CATEGORY det_profiles_covctl      GPU
+CATEGORY det_profiles_covfix      GPU
+CATEGORY det_profiles_cov         GPU
+CATEGORY det_profiles_covprior    GPU
+CATEGORY det_profiles_covgeo      GPU
+CATEGORY det_last4_base2          GPU
+CATEGORY det_last4_ppm            GPU
+CATEGORY det_last4_covctl         GPU
+CATEGORY det_last4_covfix         GPU
+CATEGORY det_last4_cov            GPU
+CATEGORY det_last4_covprior       GPU
+CATEGORY det_last4_covgeo         GPU
+
+NODE_STATUS_FILE covariates.dag.status 30

@@ -1,0 +1,71 @@
+# Turn one raw simulation month into spectra, covariates and a split table. CPU only.
+#
+#     # once per month: the raw archive must already be in /staging, uploaded from the
+#     # machine that has it -- it is not a Zenodo item and *.zip is gitignored, so no
+#     # pull puts it on CHTC. Destination:
+#     #   /staging/<first letter of netid>/<netid>/oco2/OCO2SimUQExpt_<month>.zip
+#     # Exact name, flat in that directory; this file transfers it by that path.
+#     # See docs/hpc.md, "the temporal hold-out".
+#
+#     condor_submit prep_month.sub -a 'month = 202003'
+#     condor_submit prep_month.sub -a 'month = 202007'
+#
+# ~40 minutes each: one pass over ~450 HDF5 files for the spectra and targets, a second for
+# the covariates. The output archive is ~900 MB (45,000 spectra plus their ACOS
+# covariances), which is why it goes to /staging rather than home.
+#
+# Read two lines of the output before using the result:
+#   "channel count matches February (2298)"   -- prepare_month.py; a mismatch stops the job
+#   "corrected (sorted_ref) feasible for ..." -- extract_covariates.py; must be 100%, as it
+#                                                is for February. Anything less means the
+#                                                metadata pairing is wrong for this month
+#                                                and the covariates are scrambled.
+
+include : site.conf
+include : job_resources.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+executable = prep_month.sh
+arguments  = $(month)
+
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/OCO2SimUQExpt_$(month).zip
+
+should_transfer_files  = YES
+when_to_transfer_output = ON_EXIT
+
+transfer_output_files  = oco2_month_$(month).tar.gz
+transfer_output_remaps = "oco2_month_$(month).tar.gz = $(OSDF)/oco2_month_$(month).tar.gz"
+
+requirements = $(STAGING_REQ)
+
+stream_output = true
+stream_error  = true
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+# Overrides job_resources.conf: the raw zip is 2.1 GB, unpacks to ~3 GB, and the
+# output archive is another ~900 MB. The shared default is sized for a February job.
+DISK_GB = 24
+request_disk   = $(DISK_GB)GB
+
+log    = logs/prep_month_$(month).log
+output = logs/prep_month_$(month).out
+error  = logs/prep_month_$(month).err
+
+# max_retries = 0, deliberately: ON_EXIT uploads the archive even on failure and OSDF then
+# refuses to overwrite it, so the retry is held with a transfer error that hides the real
+# one. Clean and resubmit:
+#   ./fetch_results.sh --clean oco2_month_$(month)
+max_retries = 0
+
+queue

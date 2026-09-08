@@ -1,0 +1,82 @@
+# Retrain study $(study)'s SEARCHED WINNER on $(size) training reference soundings.
+# GPU, ~1-2 hours (less at the small sizes: the epoch is proportionally shorter).
+#
+#     condor_submit train_size.sub -a 'study = nf_xco2' -a 'size = 90'
+#
+# or, as one graph over the whole curve:  condor_submit_dag size.dag
+#
+# This is the model half of the training-set-size curve. Everything is
+# held fixed except the number of distinct scenes in the training partition:
+#
+#   fixed   the configuration, read from bo_$(study)_best.json -- the winner of the search
+#           at 361 scenes, not retyped here and not re-searched. That biases the small-data
+#           points pessimistically, since a smaller training set would have selected a
+#           smaller model, and it is the comparison the question asks for: the same model,
+#           less data.
+#   fixed   the trainer, the covariate preset (scene_prior) and the epoch count (40),
+#           exactly as chtc/bo/final.sub ran them.
+#   fixed   the validation and test scenes. size_<k>_v1 inherits group_split_v1's 45 + 45,
+#           so every point of the curve selects its checkpoint on the same set and is
+#           scored on the same soundings.
+#   CHANGED the training rows: k whole reference soundings of the 361, stratified by
+#           cluster and nested across k.
+#
+# Archives are named `<study>_final_s<k>.tar.gz` and the weights land in
+# experiments/weights/size_<k>_v1/, both derived from OCO2_SPLIT by bo_final.sh and
+# job_common.sh's oco2_split_suffix.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+# The staging namespace holding the search winners -- the GROUP SPLIT's search records.
+# Keep in step with --run in the make_bo_dag.py invocation that generated chtc/bo/, and
+# with BO_RUN in fetch_results.sh.
+BO_RUN = bo25
+
+executable = bo_final.sh
+arguments  = $(study) scene_prior 40
+environment = "OCO2_SPLIT=size_$(size)_v1"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_size_$(size)_v1.tar.gz, \
+                       $(OSDF)/results/$(BO_RUN)/bo_$(study)_best.json
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = $(study)_final_s$(size).tar.gz
+transfer_output_remaps  = "$(study)_final_s$(size).tar.gz = $(OSDF)/results/$(study)_final_s$(size).tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "medium"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/$(study)_final_s$(size).log
+output = logs/$(study)_final_s$(size).out
+error  = logs/$(study)_final_s$(size).err
+
+# max_retries = 0, deliberately -- see train_full.sub.
+#   ./fetch_results.sh --clean $(study)_final_s$(size)
+max_retries = 0
+queue

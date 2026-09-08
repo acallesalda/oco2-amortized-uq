@@ -1,0 +1,33 @@
+defaults:
+  - model: full_regressor_profiles
+  - data: local_simulated
+  - override hydra/sweeper: optuna
+  - override hydra/sweeper/sampler: tpe
+  - _self_
+
+hyps:
+  seed: 42
+  lr: 3e-4
+  wd: 3e-4
+  epochs: 25
+
+data:
+  seed: ${hyps.seed}
+  # by default, stats are loaded from /workspace/project/experiments/pipelines/stats
+  # uncomment to override:
+  # stats_dir: /workspace/project/experiments/pipelines/stats
+
+hydra:
+  run:
+    dir: /workspace/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: /workspace/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweeper:
+    sampler:
+      seed: 123
+    direction: minimize
+    storage: null
+    n_trials: 300
+    n_jobs: 1
+  searchpath:
+    - pkg://shared_conf

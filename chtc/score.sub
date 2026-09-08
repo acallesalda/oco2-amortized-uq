@@ -1,0 +1,107 @@
+# Tables and figures from the eval artifacts. CPU only, about two minutes.
+#
+#     condor_submit score.sub
+#     tar -xzf score.tar.gz -C ~/OCO-2       # lands here in chtc/, not in /staging
+#     cat ~/OCO-2/experiments/scoring/tables/table_profiles.tex
+#
+# Only the three original eval artifacts are required. Ask for the others explicitly,
+# once the jobs that produce them have finished -- ./chtc/fetch_results.sh --status says
+# which have:
+#
+#     ./score_submit.sh            # every eval artifact that is in /staging, no typing
+#     ./score_submit.sh --dry-run  # see the condor_submit line it would run
+#
+# or by hand, one URL per extra artifact, leading comma included:
+#
+#     condor_submit score.sub      # xco2, profiles, last4 -- always safe
+#     condor_submit score.sub -a 'EXTRA_EVALS = , $(OSDF)/results/eval_last1.tar.gz'
+#
+# Naming an archive that is not in /staging holds the job before score.sh ever starts, so
+# an eval you have not run must not appear in transfer_input_files. score.sh then skips
+# whatever it was not given and builds the tables it can.
+
+include : site.conf
+
+universe        = container
+container_image = $(SIF)
+container_target_dir = /workspace/project
+
+executable = score.sh
+
+# The three artifacts that have existed since the first scoring run, and are therefore
+# safe to require. Everything beyond them is opt-in through EXTRA_EVALS below.
+#
+# This is not fussiness. A file named here that is not in /staging is not a warning and
+# not a shortfall message -- HTCondor cannot stage the job's input, so it HOLDS the job:
+#
+#   Transfer input files failure ... error reading from ... eval_last1.tar.gz:
+#   Pelican Client Error: object not found
+#
+# score.sh tolerates a missing archive, but score.sh never runs: the hold happens before
+# the executable starts. So the tolerance has to be here, in what is asked for, and the
+# only way to ask for nothing is to not name the file.
+EXTRA_EVALS =
+
+# There used to be three named bundles here (MARGINAL, LAST1, EVERYTHING) to save typing
+# the URLs. condor_submit warns about every macro it never expands --
+#
+#   WARNING: the line 'MARGINAL = , $(OSDF)/results/eval_last4_marginal.tar.gz' was unused
+#            by condor_submit. Is it a typo?
+#
+# -- and they are unused unless the caller happens to name one, so a normal submit printed
+# three warnings that look exactly like the real typo they were meant to prevent.
+# chtc/score_submit.sh builds the list from what is actually in /staging instead, which
+# needs no macro here and cannot name an archive that does not exist.
+
+# Nothing but the code is named outright. The three pre-search artifacts used to be
+# here as a safe floor, but they share a split with the search winners, and two
+# artifacts of one (task, split) print two blocks under one heading. What to score
+# is now entirely score_submit.sh's decision, built from what is on /staging.
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz$(EXTRA_EVALS)
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = score.tar.gz
+
+# No remap: score.tar.gz comes back to this directory (chtc/), not to /staging.
+#
+# Every other job in this project sends its archive to OSDF, because a checkpoint bundle
+# is hundreds of megabytes and has no business on the access point. This one is a few
+# kilobytes of LaTeX and a handful of PNGs, and -- unlike the others -- it is re-run every
+# time a caption changes. OSDF refuses to overwrite an existing object, so each of those
+# re-runs ended the same way:
+#
+#   Transfer output files failure ... Pelican Client Error: remote object already exists,
+#   upload aborted  ( score.tar.gz )
+#
+# and the job is HELD after doing all of its work, with the result discarded. The fix that
+# was in use was to remember ./fetch_results.sh --clean score first, every time. Writing
+# to the submit directory instead removes the failure mode rather than the reminder: a
+# local file is simply overwritten, and the tables are one `tar -xzf` away with no fetch
+# step at all:
+#
+#     condor_submit score.sub
+#     tar -xzf score.tar.gz -C ~/OCO-2
+
+requirements = $(STAGING_REQ)
+
+# Writes a few kB of LaTeX plus some PNGs, but reads a lot to do it. The February
+# artifacts total ~250 MB; each 20-level MONTH artifact is ~1.8 GB on its own (45,000
+# soundings x 20 levels x 512 stored samples), and the archives are transferred AND
+# extracted, so the disk holds both copies. 16 GB of each was sized before the months
+# existed and is now the difference between a two-minute job and a held one.
+request_cpus   = 1
+request_memory = 32GB
+request_disk   = 48GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/score.log
+output = logs/score.out
+error  = logs/score.err
+
+max_retries = 0
+
+queue

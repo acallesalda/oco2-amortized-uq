@@ -1,0 +1,112 @@
+{
+  "task": "last4",
+  "split_name": "month_202007_full_split",
+  "n": 44327,
+  "dim": 4,
+  "y_mu": [
+    0.0004116023656327175,
+    0.0004114849152136225,
+    0.0004113922767966512,
+    0.00041257489939444826
+  ],
+  "y_sigma": [
+    6.2932170290233095e-06,
+    8.51221690001063e-06,
+    1.4373456398940326e-05,
+    1.9105006973688192e-05
+  ],
+  "levels": [
+    17,
+    18,
+    19,
+    20
+  ],
+  "ppm_scale": 1000000.0,
+  "n_nf_samples": 512,
+  "schema_version": 1,
+  "created_utc": "2026-08-26T13:16:13Z",
+  "git_commit": "0f2b85f72af3ff043620e07c038012e2a2248930",
+  "device": "cuda",
+  "checkpoints": {
+    "deterministic": {
+      "kind": "deterministic",
+      "path": "/workspace/project/scratch/experiments/weights/full_feb_v1/bo_final/det_last4/global_best/net_profiles.pt",
+      "arch": {
+        "embed_dim": 256,
+        "nhead": 4,
+        "nlayers": 1,
+        "aux_dim": 32,
+        "out_dim": 4,
+        "covariates": "scene_prior"
+      },
+      "out_dim": 4,
+      "extra": {
+        "legacy": false,
+        "covariates": "scene_prior",
+        "hparams_file": "/workspace/project/scratch/experiments/weights/full_feb_v1/bo_final/det_last4/global_best/best_hparams.yaml"
+      }
+    },
+    "flow": {
+      "kind": "flow",
+      "path": "/workspace/project/scratch/experiments/weights/full_feb_v1/bo_final/nf_last4/best_nf4.pt",
+      "arch": {
+        "aux_dim": 32,
+        "embed_dim": 384,
+        "nhead": 4,
+        "nlayers": 3,
+        "out_dim": 4,
+        "nflow": {
+          "layers": 11,
+          "hidden": 674,
+          "bins": 8,
+          "tail_bound": 5.384521258,
+          "standardize_y": false,
+          "min_bin_width": 0.001,
+          "min_bin_height": 0.001,
+          "min_derivative": 0.001
+        },
+        "context_dim": 1536,
+        "covariates": "scene_prior"
+      },
+      "out_dim": 4,
+      "extra": {}
+    }
+  },
+  "laplace": {
+    "mode": "mc",
+    "hessian_structure": "diag",
+    "last_layer": "predictor.4",
+    "n_posterior_params": 1028,
+    "n_fit_samples": 6000,
+    "prior_precision": 1.0,
+    "sigma_noise": 1.0,
+    "aleatoric_var_std": [
+      0.40398848056793213,
+      0.5548717975616455,
+      0.7152570486068726,
+      0.7516934275627136
+    ]
+  },
+  "nf": {
+    "sample_dtype": "float32",
+    "n_samples": 512,
+    "gaussianize_stages": [],
+    "gaussianize_chunk": 0
+  },
+  "notes": {
+    "files_root": "/workspace/project/scratch/scratch/simulated/files",
+    "stats_dir": "/workspace/project/scratch/experiments/pipelines/stats/full_feb_v1",
+    "weights_root": "/workspace/project/scratch/experiments/weights/full_feb_v1",
+    "split_csv": "/workspace/project/scratch/scratch/simulated/files/splits/month_202007_full_split.csv",
+    "seed": 42,
+    "partial": false,
+    "cli_task": "last4",
+    "model_levels": [
+      17,
+      18,
+      19,
+      20
+    ],
+    "marginalized": false
+  }
+}

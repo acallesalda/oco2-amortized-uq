@@ -1,0 +1,44 @@
+# Line endings, repository-wide.
+#
+# This repository is developed on Windows and run on Linux, so `core.autocrlf` is on for
+# somebody and off for somebody else, and the difference is not cosmetic:
+#
+#   * a CRLF in a shell script turns `#!/bin/bash` into `#!/bin/bash\r`, and the shell
+#     reports `bad interpreter: No such file or directory` or `$'\r': command not found`
+#     -- an hour of confusion for a byte nobody typed;
+#   * a CRLF in `chtc/requirements.txt` glues a carriage return onto the
+#     `--extra-index-url` line and the cu121 torch wheels stop resolving;
+#   * a CRLF in an HTCondor submit file is passed through into the job's environment.
+#
+# `chtc/.gitattributes` has said this for the cluster layer since the first job failed on
+# it. This file says it for the whole tree, because `scripts/get_data.sh` and
+# `experiments/scoring/rebuild.sh` are outside that directory and are the two scripts a
+# stranger runs first.
+#
+# `eol=lf` is checked out as LF whatever the cloner's `core.autocrlf` says.
+*.sh    text eol=lf
+*.sub   text eol=lf
+*.dag   text eol=lf
+*.def   text eol=lf
+*.conf  text eol=lf
+*.txt   text eol=lf
+*.py    text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+*.cff   text eol=lf
+*.md    text eol=lf
+*.info  text eol=lf
+*.example text eol=lf
+LICENSE text eol=lf
+
+# Binary: never touched, never diffed as text.
+*.npy   binary
+*.npz   binary
+*.pt    binary
+*.h5    binary
+*.pdf   binary
+*.png   binary
+*.zip   binary
+*.gz    binary
+*.zarr  binary

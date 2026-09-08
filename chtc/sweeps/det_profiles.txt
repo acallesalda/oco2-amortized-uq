@@ -1,0 +1,16 @@
+det_profiles,t00,hyps.lr=0.0008 hyps.wd=0.00091 hyps.embed_dim=256 hyps.nhead=8 hyps.nlayers=1
+det_profiles,t01,hyps.lr=0.000183966 hyps.wd=0.0017901 hyps.embed_dim=320 hyps.nhead=4 hyps.nlayers=3
+det_profiles,t02,hyps.lr=0.000930577 hyps.wd=1.56937e-05 hyps.embed_dim=320 hyps.nhead=8 hyps.nlayers=2
+det_profiles,t03,hyps.lr=0.000336183 hyps.wd=2.75016e-05 hyps.embed_dim=384 hyps.nhead=4 hyps.nlayers=2
+det_profiles,t04,hyps.lr=0.000381925 hyps.wd=4.73873e-06 hyps.embed_dim=192 hyps.nhead=4 hyps.nlayers=1
+det_profiles,t05,hyps.lr=0.000166649 hyps.wd=6.40738e-06 hyps.embed_dim=384 hyps.nhead=8 hyps.nlayers=1
+det_profiles,t06,hyps.lr=0.000297411 hyps.wd=3.17981e-05 hyps.embed_dim=256 hyps.nhead=4 hyps.nlayers=3
+det_profiles,t07,hyps.lr=0.00112813 hyps.wd=0.0018585 hyps.embed_dim=384 hyps.nhead=8 hyps.nlayers=3
+det_profiles,t08,hyps.lr=0.00113513 hyps.wd=0.000105265 hyps.embed_dim=384 hyps.nhead=4 hyps.nlayers=2
+det_profiles,t09,hyps.lr=5.56813e-05 hyps.wd=0.0013236 hyps.embed_dim=192 hyps.nhead=4 hyps.nlayers=1
+det_profiles,t10,hyps.lr=0.000246548 hyps.wd=7.58199e-06 hyps.embed_dim=320 hyps.nhead=8 hyps.nlayers=1
+det_profiles,t11,hyps.lr=5.83677e-05 hyps.wd=2.48778e-06 hyps.embed_dim=320 hyps.nhead=8 hyps.nlayers=3
+det_profiles,t12,hyps.lr=0.000158065 hyps.wd=3.62359e-06 hyps.embed_dim=192 hyps.nhead=4 hyps.nlayers=3
+det_profiles,t13,hyps.lr=0.000127344 hyps.wd=0.000180191 hyps.embed_dim=320 hyps.nhead=4 hyps.nlayers=3
+det_profiles,t14,hyps.lr=0.00247387 hyps.wd=0.00226454 hyps.embed_dim=320 hyps.nhead=8 hyps.nlayers=2
+det_profiles,t15,hyps.lr=0.00021648 hyps.wd=0.0010481 hyps.embed_dim=320 hyps.nhead=8 hyps.nlayers=3

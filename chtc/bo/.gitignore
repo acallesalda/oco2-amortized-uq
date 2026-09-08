@@ -1,0 +1,7 @@
+# Records fetched from /staging by ./fetch_results.sh --bo. Regenerated on demand and
+# potentially large; the trial *parameters* and the DAG are tracked, the results are not.
+results/
+*.dag.*
+
+# The DAG node-status file, rewritten every 30 seconds while a run is in flight.
+*.status

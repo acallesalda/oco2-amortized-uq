@@ -1,0 +1,57 @@
+# The temporal generalization experiment, as one graph.
+#
+#     # once: upload the two raw months to /staging FROM the machine that has them.
+#     # They are not Zenodo items and *.zip is gitignored, so no pull brings them.
+#     #   host        transfer.chtc.wisc.edu
+#     #   destination /staging/<first letter of netid>/<netid>/oco2/
+#     #   files       OCO2SimUQExpt_202003.zip, OCO2SimUQExpt_202007.zip (flat, exact names)
+#     # See docs/hpc.md, "the temporal hold-out".
+#
+#     condor_submit_dag months.dag
+#     ./fetch_results.sh --months
+#
+# Two CPU jobs turn the raw months into spectra, covariates and split tables; six GPU jobs
+# score February's models on them. Nothing is trained. Roughly 40 minutes of CPU per month
+# and half an hour of GPU per task, and the two months are independent, so the whole graph
+# is about two hours wall clock with a free queue.
+#
+# `det_study`/`flow_study` are declared here rather than in eval_month.sub because a
+# mismatched pair does not fail -- it scores a different model and produces a plausible
+# number. The pairs are the same ones chtc/bo/bo_all.dag uses, and `last4_marginal` takes
+# the 20-level studies on purpose: it is a slice of their predictive, not its own model.
+
+# ---------------------------------------------------------------------------- prepare
+JOB prep_202003 prep_month.sub
+VARS prep_202003 month="202003"
+JOB prep_202007 prep_month.sub
+VARS prep_202007 month="202007"
+
+# ------------------------------------------------------------------------------ score
+JOB eval_xco2_202003 eval_month.sub
+VARS eval_xco2_202003 task="xco2" month="202003" det_study="det_xco2" flow_study="nf_xco2"
+PARENT prep_202003 CHILD eval_xco2_202003
+
+JOB eval_profiles_202003 eval_month.sub
+VARS eval_profiles_202003 task="profiles" month="202003" det_study="det_profiles" flow_study="nf_profiles"
+PARENT prep_202003 CHILD eval_profiles_202003
+
+JOB eval_last4_202003 eval_month.sub
+VARS eval_last4_202003 task="last4" month="202003" det_study="det_last4" flow_study="nf_last4"
+PARENT prep_202003 CHILD eval_last4_202003
+
+JOB eval_xco2_202007 eval_month.sub
+VARS eval_xco2_202007 task="xco2" month="202007" det_study="det_xco2" flow_study="nf_xco2"
+PARENT prep_202007 CHILD eval_xco2_202007
+
+JOB eval_profiles_202007 eval_month.sub
+VARS eval_profiles_202007 task="profiles" month="202007" det_study="det_profiles" flow_study="nf_profiles"
+PARENT prep_202007 CHILD eval_profiles_202007
+
+JOB eval_last4_202007 eval_month.sub
+VARS eval_last4_202007 task="last4" month="202007" det_study="det_last4" flow_study="nf_last4"
+PARENT prep_202007 CHILD eval_last4_202007
+
+# A failed scoring job should not stop the other month. RETRY is 0 for the same reason
+# max_retries is 0 in the submit files: OSDF refuses to overwrite the archive an exiting
+# job already uploaded, so an automatic retry replaces a real error with a transfer one.
+RETRY ALL_NODES 0

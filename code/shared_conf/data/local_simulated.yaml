@@ -1,0 +1,28 @@
+# `root` holds the read-only inputs (raw soundings, the extracted DataTree).
+# `out_root` holds everything the pipeline WRITES. They differ here because
+# /workspace/data is mounted read-only for the container user (uid 1003); set
+# out_root back to ${data.root} on a host where the source volume is writable.
+root: /workspace/data/oco2/simulated
+out_root: /workspace/project/scratch/simulated
+
+# Inputs -- read from `root`.
+soundings: ${data.root}/og_data
+tree: ${data.root}/tree
+
+# Outputs -- written under `out_root`.
+clean_tree: ${data.out_root}/tree/clean_oco2
+files: ${data.out_root}/files
+annotations: "aux_data.csv"
+weight_path: ${data.out_root}/weights
+
+seed: 42
+train_batch_size: 512
+val_batch_size: 4096
+
+# Cluster-balanced sampling. Declared here (rather than only on the command line) because
+# Hydra composes in struct mode: an override of a key that no config declares is a hard
+# error, and `data.balance_by=clst` therefore killed every deterministic trainer in the
+# first balanced run before a single epoch. null = off, i.e. published behaviour.
+# alpha tempers it: 0 = off, 1 = full inverse frequency, 0.5 = square root.
+balance_by: null
+balance_alpha: 0.5

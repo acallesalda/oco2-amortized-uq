@@ -1,0 +1,89 @@
+# Near-surface (last-4 level) conditional normalizing flow, trained on the
+# reference-sounding-disjoint split.
+#
+# CHECKED 2026-08-14 -- banner cleared. best_nf4.pt stores its full training cfg, and it
+# agrees with Table A1's "NF / Near-surface" row exactly: E=256, H=8, L=3, 11 flow layers,
+# hidden 597, 8 bins, tail bound 5.0595, lr 2.0935e-4, wd 1.7598e-6. Confirmed
+# independently by tensor shape: 4 dimensions with an alternating mask means 2 are
+# transformed, at 3K-1 parameters each, so the final layer has 2*(3K-1) = 46 outputs for
+# K = 8, which is what dump_checkpoint_config.py measured.
+#
+# So both YAML files were stale and Table A1 was the correct record here. It is
+# nf_profiles_grouped.yaml that had the wrong architecture -- see its header.
+#
+# Four settings below were corrected to match the checkpoint at the same time
+# (grad_clip, min_bin_width, min_bin_height, epochs); each is marked where it appears.
+#
+# ONE KNOWN DEVIATION, deliberate and worth stating in the paper. The published run
+# warm-started from `full_regressor_profiles/global_best/net_profiles.pt` -- the 20-level
+# model -- into a 4-output backbone, so `strict=False` silently dropped the head and only
+# the encoder and fusion carried over. This run warm-starts from the 4-output near-surface
+# model trained on this split, which loads the head too. That is the more sensible
+# experiment and it is what the DAG is built around (det_last4 -> nf_last4), but it means
+# the near-surface flow is not a split-only comparison the way the other five are.
+#
+# Run:
+#   python3 experiments/train/train_nf_profiles_4d.py \
+#       --exp_cfg code/shared_conf/experiment/nf_profiles4_grouped.yaml
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations_filename: aux_data.csv
+  stats_dir: /workspace/project/experiments/pipelines/stats/group_split_v1
+  split_csv: /workspace/project/scratch/simulated/files/splits/group_split_v1.csv
+  seed: 42
+  train_batch_size: 128
+  val_batch_size: 256
+
+task:
+  # 1-based pressure levels; train_nf_profiles_4d converts to 0-based internally.
+  last4: [17, 18, 19, 20]
+  standardize_y: false
+
+model:
+  # CORRECTED 2026-08-14 after nf_last4 crashed. These must match the backbone this flow
+  # warm-starts from -- det_last4, which is embed_dim 320 / nhead 4 / nlayers 2 (Table A1's
+  # deterministic near-surface row). They were 256 / 8 / 3, taken from best_nf4.pt's stored
+  # cfg, and every tensor mismatched:
+  #
+  #   size mismatch for encoder.aux_encoder.encoder.weight: copying a param with shape
+  #   torch.Size([320, 32]) ... the shape in current model is torch.Size([256, 32]).
+  #
+  # `strict=False` does not save you here: it forgives missing and unexpected keys, not
+  # shapes, so the load raises rather than partially applying.
+  #
+  # Note what this implies about best_nf4.pt: its cfg says the backbone was 256 wide, but
+  # it also names a `pretrained_ckpt` that is 320 wide (the published near-surface model is
+  # 20125787 bytes -- byte-identical in size to the one det_last4 just produced at 320).
+  # Those two cannot both be true, so the published nf4 configuration was already
+  # internally inconsistent and is not a coherent target to reproduce. Matching the actual
+  # warm-start source is the version that runs and that the DAG documents.
+  aux_dim: 32
+  embed_dim: 320
+  nhead: 4
+  nlayers: 2
+  out_dim: 4
+  # Warm start from the deterministic near-surface model trained on THIS split.
+  pretrained_ckpt: /workspace/project/experiments/weights/group_split_v1/full_regressor_profiles_last4/net_profiles.pt
+
+nflow:
+  num_layers: 11
+  hidden_features: 597
+  num_bins: 8
+  tail_bound: 5.05952066599221     # was 5.060; full precision from the checkpoint
+  min_bin_width: 0.001             # was 0.005; corrected to the checkpoint
+  min_bin_height: 0.001            # was 0.005; corrected to the checkpoint
+  min_derivative: 0.001
+
+optim:
+  lr: 2.0934846711727584e-4        # was 2.09e-4; full precision from the checkpoint
+  weight_decay: 1.759837373984636e-6
+  grad_clip: 5.0                   # was 1.0; corrected to the checkpoint
+
+train:
+  device: cuda
+  # was 100; the checkpoint's cfg says 50, and "only the split changes" means matching it.
+  # This also takes the job out of the "long" GPU class -- see oco2.dag.
+  epochs: 50
+  save_dir: /workspace/project/experiments/weights/group_split_v1/flow_regressor_profiles_nf4
+  ckpt_name: best_nf4.pt
+  log_every: 100

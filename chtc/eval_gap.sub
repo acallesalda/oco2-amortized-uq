@@ -1,0 +1,84 @@
+# Score task $(task) on the TRAINING (or validation) partition, from the same two search
+# winners chtc/bo/eval.sub scores on the test partition.
+#
+#     condor_submit eval_gap.sub -a 'task = xco2' \
+#         -a 'det_study = det_xco2' -a 'flow_study = nf_xco2'
+#
+# and for all three tasks at once:  condor_submit_dag gap.dag
+#
+# Why it exists
+# -------------
+# A diagnostic of over-fitting. The difference between a metric on the rows
+# the model was fit on and the same metric on held-out rows, produced by the same scorer,
+# is that diagnostic. Nothing about the model changes here: same checkpoints, same
+# standardization, same Laplace fit on the training partition and calibration on the
+# validation one. Only the rows that get scored change.
+#
+# EVAL_REFS=45 draws 45 whole reference soundings of the 361 in the training partition, so
+# the in-sample estimate has the same number of bootstrap groups as the held-out estimate
+# and the two standard errors are comparable. Drop it to score all 36,003 training rows,
+# which costs about eight times the GPU time for a tighter version of the same number.
+#
+# Set EVAL_PARTITION=val (and the tag to gap_val) for the validation partition, whose
+# figures Table~\ref{tab:model_search} reports in standardized units. It is a second
+# held-out set of 45 reference soundings, so val-vs-test measures scene sampling and
+# train-vs-val measures fitting.
+#
+# The ACOS rows are the control that makes the gap readable: the operational retrieval does
+# not train, so whatever it does between the two partitions is difficulty, not fitting.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+# `gap` defaults to train; override with -a 'gap = val'.
+gap = train
+
+executable = bo_eval.sh
+arguments  = $(task) scene_prior gap_$(gap)
+environment = "OCO2_SPLIT=group_split_v1 EVAL_PARTITION=$(gap) EVAL_REFS=45"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/results/$(det_study)_final.tar.gz, \
+                       $(OSDF)/results/$(flow_study)_final.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task)_gap_$(gap).tar.gz
+transfer_output_remaps  = "eval_$(task)_gap_$(gap).tar.gz = $(OSDF)/results/eval_$(task)_gap_$(gap).tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task)_gap_$(gap).log
+output = logs/eval_$(task)_gap_$(gap).out
+error  = logs/eval_$(task)_gap_$(gap).err
+
+# max_retries = 0, deliberately -- see train.sub.
+#   ./fetch_results.sh --clean eval_$(task)_gap_$(gap)
+max_retries = 0
+queue

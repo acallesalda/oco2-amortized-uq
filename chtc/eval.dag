@@ -1,0 +1,42 @@
+# Scoring, as its own graph.
+#
+#     condor_submit_dag eval.dag
+#
+# Deliberately separate from oco2.dag. The three nodes read the *result archives* the
+# training jobs left in /staging, not a DAGMan parent, so:
+#
+#   * training can start before any of this exists, and did;
+#   * a task can be re-scored -- more flow samples, a different Laplace structure -- for
+#     the cost of one short GPU job, without touching the models;
+#   * a training node that has to be re-run does not drag scoring along with it.
+#
+# The three are independent of each other and run concurrently. Each takes tens of
+# minutes and asks for the "short" GPU class.
+#
+#     eval_xco2       <- det_xco2.tar.gz      + nf_xco2.tar.gz
+#     eval_profiles   <- det_profiles.tar.gz  + nf_profiles.tar.gz
+#     eval_last4      <- det_last4.tar.gz     + nf_last4.tar.gz
+#
+# Check the inputs are there before submitting:
+#     ./fetch_results.sh --status
+
+JOB eval_xco2          eval.sub
+JOB eval_profiles      eval.sub
+JOB eval_last4         eval.sub
+JOB eval_last4_marginal eval.sub
+
+VARS eval_xco2     task="xco2"     det_tar="det_xco2.tar.gz"     flow_tar="nf_xco2.tar.gz"
+VARS eval_profiles task="profiles" det_tar="det_profiles.tar.gz" flow_tar="nf_profiles.tar.gz"
+VARS eval_last4    task="last4"    det_tar="det_last4.tar.gz"    flow_tar="nf_last4.tar.gz"
+# The marginalized rows of Table 3: the 20-level models scored on levels 17-20, so it
+# takes the *profiles* archives. Independent of eval_last4 and runs beside it.
+VARS eval_last4_marginal task="last4_marginal" \
+     det_tar="det_profiles.tar.gz" flow_tar="nf_profiles.tar.gz"
+
+MAXJOBS GPU 4
+CATEGORY eval_xco2          GPU
+CATEGORY eval_profiles      GPU
+CATEGORY eval_last4         GPU
+CATEGORY eval_last4_marginal GPU
+
+NODE_STATUS_FILE eval.dag.status 30

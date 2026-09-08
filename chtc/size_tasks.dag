@@ -1,0 +1,88 @@
+# The learning curve in training scenes, for the TWO PROFILE TASKS.
+#
+#     cd chtc && mkdir -p logs && condor_submit_dag size_tasks.dag
+#     ./fetch_results.sh --size-tasks
+#
+# WHY THIS IS A SECOND DAG. `size.dag` built the three subset tables and ran the XCO2 pair
+# on them. The tables are inputs, not results: they are already in /staging as
+# oco2_size_{90,180,270}_v1.tar.gz, and OSDF refuses to overwrite an object -- so a DAG
+# that repeated the prep nodes would be held on upload before doing any work. This one has
+# no prep nodes and reads what size.dag left.
+#
+# If the subset tables are NOT in /staging (a fresh account, or after a --clean), run
+# size.dag first; it is three CPU jobs plus the XCO2 pair.
+#
+# WHAT IT ADDS. The same experiment on the two profile tasks: twelve GPU retrains at the
+# searched configurations and six scoring jobs on the SAME 4,489 held-out soundings the
+# published run uses. The near-surface curve answers a different question from XCO2's --
+# there the amortized posterior currently extracts nothing per-sounding (within/floor =
+# 1.001), so the curve says whether that is a data limit or a conditioning one -- and the
+# 20-level curve tests that directly: if scenes are the binding
+# constraint, the 20-level flow's checkpoint epoch should move later than 7 as k grows.
+#
+# COST. 12 GPU retrains (1-2 h, concurrent) + 6 short scoring jobs. The profile artifacts
+# are ~224 MB each, so budget the transfer as well.
+
+# ------------------------------------------------------- near-surface, levels 17-20
+JOB det_last4_s90    train_size.sub
+VARS det_last4_s90    study="det_last4" size="90"
+JOB nf_last4_s90     train_size.sub
+VARS nf_last4_s90     study="nf_last4"  size="90"
+JOB eval_last4_s90   eval_size.sub
+VARS eval_last4_s90   task="last4" size="90"  det_study="det_last4" flow_study="nf_last4"
+PARENT det_last4_s90 nf_last4_s90 CHILD eval_last4_s90
+
+JOB det_last4_s180   train_size.sub
+VARS det_last4_s180   study="det_last4" size="180"
+JOB nf_last4_s180    train_size.sub
+VARS nf_last4_s180    study="nf_last4"  size="180"
+JOB eval_last4_s180  eval_size.sub
+VARS eval_last4_s180  task="last4" size="180" det_study="det_last4" flow_study="nf_last4"
+PARENT det_last4_s180 nf_last4_s180 CHILD eval_last4_s180
+
+JOB det_last4_s270   train_size.sub
+VARS det_last4_s270   study="det_last4" size="270"
+JOB nf_last4_s270    train_size.sub
+VARS nf_last4_s270    study="nf_last4"  size="270"
+JOB eval_last4_s270  eval_size.sub
+VARS eval_last4_s270  task="last4" size="270" det_study="det_last4" flow_study="nf_last4"
+PARENT det_last4_s270 nf_last4_s270 CHILD eval_last4_s270
+
+# ------------------------------------------------------------ the 20-level profile
+JOB det_profiles_s90   train_size.sub
+VARS det_profiles_s90   study="det_profiles" size="90"
+JOB nf_profiles_s90    train_size.sub
+VARS nf_profiles_s90    study="nf_profiles"  size="90"
+JOB eval_profiles_s90  eval_size.sub
+VARS eval_profiles_s90  task="profiles" size="90"  det_study="det_profiles" flow_study="nf_profiles"
+PARENT det_profiles_s90 nf_profiles_s90 CHILD eval_profiles_s90
+
+JOB det_profiles_s180  train_size.sub
+VARS det_profiles_s180  study="det_profiles" size="180"
+JOB nf_profiles_s180   train_size.sub
+VARS nf_profiles_s180   study="nf_profiles"  size="180"
+JOB eval_profiles_s180 eval_size.sub
+VARS eval_profiles_s180 task="profiles" size="180" det_study="det_profiles" flow_study="nf_profiles"
+PARENT det_profiles_s180 nf_profiles_s180 CHILD eval_profiles_s180
+
+JOB det_profiles_s270  train_size.sub
+VARS det_profiles_s270  study="det_profiles" size="270"
+JOB nf_profiles_s270   train_size.sub
+VARS nf_profiles_s270   study="nf_profiles"  size="270"
+JOB eval_profiles_s270 eval_size.sub
+VARS eval_profiles_s270 task="profiles" size="270" det_study="det_profiles" flow_study="nf_profiles"
+PARENT det_profiles_s270 nf_profiles_s270 CHILD eval_profiles_s270
+
+# ------------------------------------------- the marginalized near-surface rows, if wanted
+# The 20-LEVEL models scored on levels 17-20 -- a slice of the profile models' predictive,
+# so it needs no extra training, only three more scoring jobs. Uncomment to add it.
+#
+# JOB eval_last4_marginal_s90  eval_size.sub
+# VARS eval_last4_marginal_s90 task="last4_marginal" size="90" det_study="det_profiles" flow_study="nf_profiles"
+# PARENT det_profiles_s90 nf_profiles_s90 CHILD eval_last4_marginal_s90
+# ... and the same for 180 and 270.
+
+# A failed node should not stop the others; RETRY 0 for the reason given in balanced.dag.
+RETRY ALL_NODES 0
+
+NODE_STATUS_FILE size_tasks.dag.status 30

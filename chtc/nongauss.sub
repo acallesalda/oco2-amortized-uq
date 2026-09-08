@@ -1,0 +1,73 @@
+# The non-Gaussianity tables, from the gaussianize artifacts. CPU only, about two minutes.
+#
+#     condor_submit nongauss.sub
+#     ./fetch_results.sh nongauss
+#     cat ~/OCO-2/experiments/scoring/tables/nongauss.md
+#
+# The answer is also in chtc/logs/nongauss.out -- nongauss.sh cats the markdown at the end
+# -- so `condor_tail` or the .out file gives it before the archive is fetched at all.
+#
+# EVERY ARCHIVE NAMED BELOW MUST EXIST IN /staging. HTCondor holds the job when an input
+# file is missing, and the tolerance for a missing task lives in nongauss.sh, which cannot
+# help with a transfer that never happened. So: comment out the line for any task whose
+# gaussianize job has not landed, and nongauss.sh will report the shortfall and build the
+# tables it can. `./fetch_results.sh --status` lists what is there.
+#
+# `eval_<task>_bo.tar.gz` is accepted in place of `eval_<task>_gauss.tar.gz` for a task
+# whose control job has not run: nongauss.py then fits the control from the 512 stored
+# samples and labels the row `control = stored samples`. Never name both for one task --
+# nongauss.sh exits rather than putting two rows for one task in the table.
+
+include : site.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+executable = nongauss.sh
+
+# last4_marginal is commented out: its gaussianize job has not landed. Uncomment when it
+# does, or swap in $(OSDF)/results/eval_last4_marginal_bo.tar.gz to get its cluster and
+# per-level rows now from the 512 stored samples. last1 and last1_marginal are listed for
+# when the surface-only pair has been through gauss_submit.sh.
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_split_v1.tar.gz, \
+                       $(OSDF)/oco2_covariates_v1.tar.gz, \
+                       $(OSDF)/results/eval_xco2_gauss.tar.gz, \
+                       $(OSDF)/results/eval_profiles_gauss.tar.gz, \
+                       $(OSDF)/results/eval_last4_gauss.tar.gz
+#                      $(OSDF)/results/eval_last4_marginal_gauss.tar.gz, \
+#                      $(OSDF)/results/eval_last1_gauss.tar.gz, \
+#                      $(OSDF)/results/eval_last1_marginal_gauss.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = nongauss.tar.gz
+transfer_output_remaps  = "nongauss.tar.gz = $(OSDF)/results/nongauss.tar.gz"
+
+requirements = $(STAGING_REQ)
+
+# Reads three .npz of ~120 MB each and writes a few kB of CSV. The memory is for the
+# 20-level artifact's stored samples: [4489, 512, 20] promoted to float64 is 0.7 GB, and
+# nongauss.py holds one of those at a time plus the per-cluster subsets it slices out.
+request_cpus   = 2
+request_memory = 24GB
+request_disk   = 16GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/nongauss.log
+output = logs/nongauss.out
+error  = logs/nongauss.err
+
+# max_retries = 0, as everywhere: ON_EXIT uploads nongauss.tar.gz even on a nonzero exit,
+# and OSDF then refuses to overwrite it, so the retry is held with a transfer error that
+# says nothing about the real failure.
+#
+#   ./fetch_results.sh --clean nongauss
+#   condor_submit nongauss.sub
+max_retries = 0
+
+queue

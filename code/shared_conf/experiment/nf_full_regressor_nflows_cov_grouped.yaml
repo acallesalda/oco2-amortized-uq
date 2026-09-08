@@ -1,0 +1,69 @@
+# @package _global_
+# nf_full_regressor_nflows, on the reference-sounding-disjoint split WITH the recovered covariates.
+#
+# Generated from nf_full_regressor_nflows_grouped.yaml by changing exactly three things:
+#
+#   covariates:      the preset the deterministic backbone was trained with. It sets the
+#                    auxiliary encoder's shape, so it MUST match the backbone or the
+#                    warm-start silently drops the aux weights -- train_nf_profiles.py
+#                    raises rather than letting that happen.
+#   data.split_csv:  the augmented annotations table, which carries the corrected scene
+#                    metadata (*_fix) and the priors the pipeline never read.
+#   backbone_ckpt:   the covariate-trained backbone rather than the legacy one.
+#
+# Everything else -- flow architecture, optimizer, epochs -- is untouched, so a comparison
+# against nf_full_regressor_nflows_grouped.yaml isolates the covariates.
+#
+# Run:
+#   python3 experiments/train/train_nf.py --exp_cfg code/shared_conf/experiment/nf_full_regressor_nflows_cov_grouped.yaml
+
+# The covariate set. Must equal the backbone's.
+covariates: scene_prior
+
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+  train_size: 0.9          # ignored when split_csv is set (val comes from the table)
+  stats_dir: /workspace/project/experiments/pipelines/stats/group_split_v1
+  split_csv: /workspace/project/scratch/simulated/files/splits/group_split_v1_cov.csv
+  # What this flow models. `xco2` is the column average -- the quantity Table 1 is about,
+  # and the one its Laplace and ACOS rows report.
+  #
+  # train_nf.py's default is `surface`, which is what it has always silently done: load the
+  # PROFILE dataset and take level 20. That made Table 1's NF row a different target from
+  # its other two rows, standardized by a different constant, on differently preprocessed
+  # inputs.
+  #
+  # Set explicitly here rather than relying on the default, because the default is chosen
+  # to preserve old behaviour, not to be correct.
+  target: xco2
+
+weights_dir: /workspace/project/experiments/weights/group_split_v1/flow_regressor_nflow
+
+bo:
+  enabled: false
+
+model_cfg_obj:
+  full_backbone:
+    aux_dim: 32
+    embed_dim: 256
+    nhead: 8
+    nlayers: 1
+  nflow:
+    hidden: 384
+    layers: 5
+    bins: 9
+    tail_bound: 6.3108919641
+
+optim:
+  lr: 4.533555957493404e-04
+  wd: 5.387680934037755e-04
+  epochs: 35        # was 50; the checkpoint's extra says 35
+  grad_clip: 1.0
+
+setup:
+  freeze_backbone: false
+  backbone_ckpt: null

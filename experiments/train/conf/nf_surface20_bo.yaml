@@ -1,0 +1,38 @@
+weights_dir: /workspace/project/experiments/weights/flow_regressor_surface20_nf_bo
+
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 512
+  val_batch_size: 512
+  seed: 42
+  train_size: 0.9
+  stats_dir: /workspace/project/experiments/pipelines/stats
+
+model_cfg_obj:
+  full_backbone:
+    aux_dim: 32
+    embed_dim: 256
+    nhead: 8
+    nlayers: 1
+    out_dim: 1
+  nflow:
+    hidden: 256
+    layers: 4
+    bins: 8
+    tail_bound: 10.0
+
+optim:
+  lr: 5.0e-4
+  wd: 1.0e-5
+  epochs: 60
+  grad_clip: 5.0
+
+setup:
+  freeze_backbone: false
+  backbone_ckpt: null
+
+bo:
+  enabled: true
+  n_trials: 100
+  timeout: null

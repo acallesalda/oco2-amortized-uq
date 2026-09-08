@@ -1,0 +1,63 @@
+# @package _global_
+# Deterministic SURFACE-ONLY regressor -- pressure level 20, one output -- on the
+# reference-sounding-disjoint split.
+#
+# Why this model exists. Table 1 compares ACOS and the two amortized posteriors on a
+# scalar, XCO2, and that is the one place where the comparison is unambiguous: D=1, so
+# there is no joint-versus-marginal coverage question, no near-singular ACOS covariance
+# to jitter, and the NLL is a single number in ppm. The near-surface levels are where the
+# spectrum carries the least information and where ACOS's posterior is widest, so a
+# scalar surface task is the second place that comparison can be made cleanly -- and the
+# one where a spectrum-to-posterior network has the best chance of winning outright
+# rather than tying. `det_last4` already predicts level 20 as one of four outputs, but it
+# is selected on the RMSE averaged over all four, which is not the same model.
+#
+# Hyperparameters are det_last4's (Table A1, "Deterministic / Near-surface"), unchanged
+# except for the output dimension. Deliberately not re-tuned: the point of this row is
+# the target, and a fresh Bayesian optimization would confound "predicting one level is
+# easier" with "these hyperparameters are better". If the row is worth keeping, the BO
+# machinery in chtc/bo/ can be pointed at it afterwards.
+#
+# Run:
+#   python3 experiments/train/train_profiles.py \
+#       +experiment=full_regressor_profiles_last1_grouped
+defaults:
+  - override /data: local_simulated_grouped
+
+task: profiles
+# 0-based indices into the 20-level target vector, so [19] is 1-based pressure level 20.
+# The string form "last1" resolves to the same thing; the list is written out because it
+# is the unambiguous spelling and because train_profiles.py records it in the checkpoint.
+target_indices: [19]
+weights_dir: /workspace/project/experiments/weights/group_split_v1/full_regressor_profiles_last1
+
+hyps:
+  model: full_regressor_profiles
+  seed: 42
+  embed_dim: 320
+  nhead: 4
+  nlayers: 2
+  aux_dim: 32
+  lr: 1.95e-4
+  wd: 4.76e-4
+  epochs: 40
+
+model:
+  embed_dim: ${hyps.embed_dim}
+  nhead: ${hyps.nhead}
+  nlayers: ${hyps.nlayers}
+  aux_dim: ${hyps.aux_dim}
+  out_dim: 1
+
+# At D=1 the ppm-weighted and standardized losses differ by a constant factor and select
+# the same checkpoint, so both stay at the published default -- the same argument that
+# keeps det_xco2 out of the `_ppm` covariate family.
+loss_weight: std
+select_metric: std
+
+data:
+  seed: ${hyps.seed}
+
+hydra:
+  run:
+    dir: ${weights_dir}/runs/${now:%Y%m%d_%H%M%S}

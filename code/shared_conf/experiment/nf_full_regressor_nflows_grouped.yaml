@@ -1,0 +1,78 @@
+# Scalar XCO2 conditional normalizing flow, trained on the reference-sounding-disjoint
+# split, with BO disabled so the split is the only thing that changes.
+#
+# CHECKED 2026-08-14 (chtc/audit.sub) -- banner cleared. The checkpoint settles it, and
+# it is this file that was right and TABLE A1 THAT IS WRONG.
+#
+#   from best_flow_nflows.pt          this file    Table A1 "NF / XCO2"
+#     5 coupling layers   (shapes)       5              3
+#     hidden 384          (shapes)     384            256
+#     9 bins              (shapes)       9             21
+#     lr 4.533555957e-04  (extra)   4.5336e-4      8.34e-4
+#     wd 5.387680934e-04  (extra)   5.3877e-4      6.61e-4
+#     epochs 35           (extra)      35 <- was 50
+#     embed 256 / aux 32 / nlayers 1   same          same
+#
+# The flow shape is read off the tensors, not taken on trust: the scalar flow is
+# autoregressive, so all 1 dimension is transformed, and with tails="linear" the final
+# layer has 1*(3K-1) outputs. Measured 26 -> K = 9. Table A1's 21 bins would be 62.
+#
+# So Table A1's XCO2 row needs correcting in the manuscript (the
+# configs; for this row it was the table). `epochs` here was 50 and is now 35 to match.
+#
+# ONE VALUE REMAINS UNVERIFIABLE: tail_bound. No tensor shape encodes it and the old
+# save_checkpoint did not store a cfg. 6.3108919641 below is xco2.ipynb's literal --
+# every other number in that notebook cell has now been confirmed correct, which is
+# reason to trust it but not proof. Say so in the paper rather than implying it was read
+# off the checkpoint.
+#
+# Run:
+#   python3 experiments/train/train_nf.py \
+#       --exp_cfg code/shared_conf/experiment/nf_full_regressor_nflows_grouped.yaml
+data:
+  root: /workspace/project/scratch/simulated/files
+  annotations: aux_data.csv
+  train_batch_size: 128
+  val_batch_size: 256
+  seed: 42
+  train_size: 0.9          # ignored when split_csv is set (val comes from the table)
+  stats_dir: /workspace/project/experiments/pipelines/stats/group_split_v1
+  split_csv: /workspace/project/scratch/simulated/files/splits/group_split_v1.csv
+  # What this flow models. `xco2` is the column average -- the quantity Table 1 is about,
+  # and the one its Laplace and ACOS rows report.
+  #
+  # train_nf.py's default is `surface`, which is what it has always silently done: load the
+  # PROFILE dataset and take level 20. That made Table 1's NF row a different target from
+  # its other two rows, standardized by a different constant, on differently preprocessed
+  # inputs.
+  #
+  # Set explicitly here rather than relying on the default, because the default is chosen
+  # to preserve old behaviour, not to be correct.
+  target: xco2
+
+weights_dir: /workspace/project/experiments/weights/group_split_v1/flow_regressor_nflow
+
+bo:
+  enabled: false
+
+model_cfg_obj:
+  full_backbone:
+    aux_dim: 32
+    embed_dim: 256
+    nhead: 8
+    nlayers: 1
+  nflow:
+    hidden: 384
+    layers: 5
+    bins: 9
+    tail_bound: 6.3108919641
+
+optim:
+  lr: 4.533555957493404e-04
+  wd: 5.387680934037755e-04
+  epochs: 35        # was 50; the checkpoint's extra says 35
+  grad_clip: 1.0
+
+setup:
+  freeze_backbone: false
+  backbone_ckpt: null

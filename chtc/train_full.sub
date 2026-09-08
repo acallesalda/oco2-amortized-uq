@@ -1,0 +1,92 @@
+# Retrain study $(study)'s SEARCHED WINNER on ALL of February. GPU, ~1-2 hours.
+#
+#     condor_submit train_full.sub -a 'study = det_xco2'
+#     ... and the same for det_profiles, det_last4, nf_xco2, nf_profiles, nf_last4
+#
+# or, with the two months and the six scoring jobs, as one graph:
+#
+#     condor_submit_dag months_full.dag
+#
+# This is the model half of the definitive temporal hold-out. Three things are held fixed and
+# one changes:
+#
+#   fixed   the configuration. It is read from bo_$(study)_best.json -- the winner of the
+#           group-split search, not retyped here -- so this is the same architecture and
+#           optimizer that the published tables report.
+#   fixed   the trainer, the covariate preset (scene_prior) and the epoch count (40, twice
+#           the trial count), all exactly as chtc/bo/final.sub ran them. The trainer files
+#           themselves are untouched by this experiment.
+#   fixed   the validation scenes. full_feb_v1 inherits group_split_v1's 45, so the
+#           checkpoint is selected on the same set the configuration was ranked on -- and
+#           so the Laplace's aleatoric diagonal is still calibrated out of sample when
+#           these models are scored.
+#   CHANGED the training rows: 406 reference soundings and 40,492 soundings, against
+#           group_split_v1's 361 and 36,003. March and July are the test set now, so a
+#           February test partition is only scenes the model could have learned from.
+#
+# The archives are named `<study>_final_full.tar.gz`, and the weights land in
+# experiments/weights/full_feb_v1/ -- distinct from both the group split's and the
+# rerun's, because OSDF refuses to overwrite an object and because two models at one path
+# is a failure with no trace in any log. bo_final.sh derives both from OCO2_SPLIT.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+# The staging namespace holding the search winners. These are the GROUP SPLIT's search
+# records: the point of this job is to retrain that search's answer on more data, not to
+# search again. Keep in step with --run in the make_bo_dag.py invocation that generated
+# chtc/bo/, and with BO_RUN in fetch_results.sh.
+BO_RUN = bo25
+
+executable = bo_final.sh
+arguments  = $(study) scene_prior 40
+environment = "OCO2_SPLIT=full_feb_v1"
+
+transfer_input_files = job_common.sh, \
+                       bo_studies.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_full_feb_v1.tar.gz, \
+                       $(OSDF)/results/$(BO_RUN)/bo_$(study)_best.json
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = $(study)_final_full.tar.gz
+transfer_output_remaps  = "$(study)_final_full.tar.gz = $(OSDF)/results/$(study)_final_full.tar.gz"
+
+request_gpus = 1
++WantGPULab  = true
+# "medium" rather than "short", as in chtc/bo/final.sub: twice the trial epochs, on 12 %
+# more data, and the search is free to have picked a 512-wide backbone with twelve
+# coupling layers.
++GPUJobLength = "medium"
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/$(study)_final_full.log
+output = logs/$(study)_final_full.out
+error  = logs/$(study)_final_full.err
+
+# max_retries = 0, deliberately: ON_EXIT uploads the archive even on failure and OSDF
+# refuses to overwrite it, so a retry is held with a transfer error that says nothing
+# about the real one. Clean and resubmit:
+#   ./fetch_results.sh --clean $(study)_final_full
+max_retries = 0
+queue

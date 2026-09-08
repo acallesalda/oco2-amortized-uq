@@ -1,0 +1,7 @@
+_target_: modeling.fully_connected_no_aux.FullyConnectedNoAux
+input_dim: 6150
+embed_dim: 256
+hidden_dims:
+  - 512
+  - 256
+

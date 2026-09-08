@@ -1,0 +1,79 @@
+# Score the published checkpoints on the published replicate-level split.
+#
+#     ./stage_data.sh weights                 # once, ~320 MB, on the transfer node
+#     condor_submit eval_pub.sub -a 'task = xco2'
+#     condor_submit eval_pub.sub -a 'task = profiles'
+#     condor_submit eval_pub.sub -a 'task = last4'
+#     ./fetch_results.sh --replicate
+#
+# The within-reference half of the split comparison, produced by `experiments/scoring/` rather
+# than by the four notebooks, so that it can be printed next to the reference-disjoint
+# numbers without the comparison being confounded by a change of scorer. See eval_pub.sh
+# for what differs from eval.sub -- it is the weights archive and nothing else.
+#
+# No `include : job_resources.conf` gap here: this job reads the same data and does the
+# same work as eval.sub, so it takes the same resources.
+
+include : site.conf
+include : job_resources.conf
+include : gpu_constraints.conf
+
+universe             = container
+container_image      = $(SIF)
+container_target_dir = /workspace/project
+
+executable = eval_pub.sh
+arguments  = $(task)
+
+# oco2_model_weights.tar.gz instead of two result archives: the checkpoints being scored
+# are the published ones, which were never produced by a job on this cluster. Everything
+# else is what eval.sub transfers, minus the split table and its statistics -- the
+# replicate split is defined by which subdirectory a sounding sits in, so aux_data.csv is
+# the whole of it.
+transfer_input_files = job_common.sh, \
+                       oco2_code.tar.gz, \
+                       $(OSDF)/oco2_processed_train.tar.gz, \
+                       $(OSDF)/oco2_processed_test.tar.gz, \
+                       $(OSDF)/oco2_profile_stats.tar.gz, \
+                       $(OSDF)/oco2_model_weights.tar.gz
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = eval_$(task)_replicate.tar.gz
+transfer_output_remaps  = "eval_$(task)_replicate.tar.gz = $(OSDF)/results/eval_$(task)_replicate.tar.gz"
+
+# ---------------------------------------------------------------------------------
+# GPU
+# ---------------------------------------------------------------------------------
+# Identical to eval.sub: a Laplace refit over a few thousand training soundings and 512
+# flow draws for each test sounding. Tens of minutes.
+request_gpus = 1
++WantGPULab  = true
++GPUJobLength = "short"
+
+gpus_minimum_capability = $(GPU_MIN_CAP)
+gpus_maximum_capability = $(GPU_MAX_CAP)
+gpus_minimum_memory     = $(GPU_MIN_MEM)
+
+requirements = $(STAGING_REQ)
+
+request_cpus   = $(CPUS)
+request_memory = $(MEM_GB)GB
+request_disk   = $(DISK_GB)GB
+
+stream_output = true
+stream_error  = true
+
+log    = logs/eval_$(task)_replicate.log
+output = logs/eval_$(task)_replicate.out
+error  = logs/eval_$(task)_replicate.err
+
+# max_retries = 0, deliberately. ON_EXIT transfers the archive even on a nonzero exit and
+# OSDF refuses to overwrite it, so the retry is held with a transfer error that says
+# nothing about the real failure. Clean and resubmit:
+#
+#   ./fetch_results.sh --clean eval_$(task)_replicate
+#   condor_submit eval_pub.sub -a 'task = $(task)'
+max_retries = 0
+
+queue

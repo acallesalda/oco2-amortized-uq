@@ -1,0 +1,5 @@
+det_last4: 16 trials, seed 20260814.
+Regenerate with `python3 chtc/make_sweep_grid.py`.
+Columns in det_last4.txt: base,trial,hydra-overrides -- one job per line,
+no comments, because condor_submit queues comment lines as jobs.
+t00 is the current *_grouped.yaml configuration: the sweep's own baseline.
