@@ -25,7 +25,8 @@ sys.path.append("/workspace/project/code")
 
 from modeling.full_regressor_profiles import FullRegressorProfiles
 from modeling.flow_regressor_profiles_nf import FeatureNetProfiles, NFProfiles
-from data.loading.spectral_loader import train_val_loader_profiles
+from data.loading.spectral_loader import (DENSITY_KEY, density_settings,
+                                          train_val_loader_profiles)
 from data.loading.covariates import get_spec, load_covariate_stats, model_aux_kwargs
 from utils.cfg import dotted_overrides
 from utils.targets import resolve_target_indices as _resolve_target_indices
@@ -300,8 +301,16 @@ def train_one(cfg: dict, device: torch.device, trial_idx: int = 0, idxs: Optiona
     # Cluster-balanced training. data.balance_by names a column of the split table to
     # equalise (use "clst"); data.balance_alpha tempers it, 0 = off, 1 = full inverse
     # frequency, 0.5 = square root. Unset -> uniform shuffling, i.e. published behaviour.
+    # `balance_by="density"` selects the covariate-density sampler instead of a column;
+    # data.density_{mode,beta,k,clip} are its own settings and alpha is shared. See
+    # code/data/loading/density_weights.py for what that intervention is and is not.
     balance_by = cfg["data"].get("balance_by", None)
     balance_alpha = float(cfg["data"].get("balance_alpha", 0.5))
+    density = density_settings(cfg["data"]) if balance_by == DENSITY_KEY else None
+    cov_spec = get_spec(cfg.get("covariates", None))
+    if density is not None:
+        print(f"[balance] covariate-density sampling in {cov_spec.name} space "
+              f"(alpha={balance_alpha:.2f}, {density})")
     train_dl, val_dl = train_val_loader_profiles(
         root=cfg["data"]["root"],
         annotations_filename=cfg["data"]["annotations"],
@@ -312,9 +321,10 @@ def train_one(cfg: dict, device: torch.device, trial_idx: int = 0, idxs: Optiona
         # set data.split_csv to use a reference-sounding-disjoint split; None keeps the
         # original replicate-level split with validation drawn at random from training
         split_csv=cfg["data"].get("split_csv", None),
-        cov_spec=get_spec(cfg.get("covariates", None)),
+        cov_spec=cov_spec,
         balance_by=balance_by,
         balance_alpha=balance_alpha,
+        density=density,
     )
     # warm batch for context dim
     warm_batch = next(iter(train_dl))

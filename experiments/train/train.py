@@ -21,7 +21,7 @@ import hydra
 import mlflow
 import yaml
 
-from data.loading.spectral_loader import train_val_loader
+from data.loading.spectral_loader import DENSITY_KEY, density_settings, train_val_loader
 from data.loading.covariates import get_spec, cat_cardinalities, load_covariate_stats
 from utils.schedule import cosine_with_warmup, clip_gradients, describe as describe_sched
 
@@ -117,9 +117,17 @@ def main(cfg):
     # Cluster-balanced training. data.balance_by names a column of the split table to
     # equalise (use "clst"); data.balance_alpha tempers it, 0 = off, 1 = full inverse
     # frequency, 0.5 = square root. Unset -> uniform shuffling, i.e. published behaviour.
+    # `balance_by="density"` selects the covariate-density sampler instead of a column:
+    # weights come from the local density of `covariates` in scene space, tempered by the
+    # same alpha, with data.density_{mode,beta,k,clip} for the rest. See
+    # code/data/loading/density_weights.py for what that intervention is and is not.
     balance_by = cfg.data.get("balance_by", None)
     balance_alpha = float(cfg.data.get("balance_alpha", 0.5))
-    if balance_by:
+    density = density_settings(cfg.data) if balance_by == DENSITY_KEY else None
+    if balance_by == DENSITY_KEY:
+        logger.info("covariate-density sampling in %s space with alpha=%.2f, %s",
+                    cov_spec.name, balance_alpha, density)
+    elif balance_by:
         logger.info("cluster-balanced sampling on '%s' with alpha=%.2f",
                     balance_by, balance_alpha)
     train_dl, val_dl = train_val_loader(
@@ -131,6 +139,7 @@ def main(cfg):
         cov_spec=cov_spec,
         balance_by=balance_by,
         balance_alpha=balance_alpha,
+        density=density,
     )
 
     # Model via Hydra instantiate so you can swap architectures in YAML
@@ -207,6 +216,12 @@ def main(cfg):
             "covariate_tier": cov_spec.tier,
             "balance_by": balance_by or "none",
             "balance_alpha": balance_alpha if balance_by else 0.0,
+            # The density sampler's own settings, so the run record says which
+            # intervention was applied and not merely that one was.
+            "density_mode": density["mode"] if density else "none",
+            "density_beta": density["beta"] if density else 0.0,
+            "density_k": density["k"] if density else 0,
+            "density_clip": density["clip"] if density else 0.0,
         })
 
         for epoch in range(cfg.hyps.epochs):

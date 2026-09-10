@@ -7,6 +7,8 @@ message: >-
 type: software
 license: MIT
 repository-code: "https://github.com/acallesalda/oco2-amortized-uq"
+version: v1.0.1
+date-released: "2026-09-09"
 abstract: >-
   Training and evaluation code for amortized probabilistic retrieval of atmospheric CO2
   from OCO-2 spectra. A convolutional-transformer network maps a three-band spectrum to a
@@ -48,16 +50,18 @@ authors:
     family-names: Katzfuss
     affiliation: "Department of Statistics, University of Wisconsin-Madison"
 
-# The software DOI goes here once the Zenodo record is minted, as
-#
-#   identifiers:
-#     - type: doi
-#       value: "10.5281/zenodo.XXXXXXXX"
-#       description: The archived snapshot of this repository.
-#
-# It is commented out rather than left as a placeholder because an invalid DOI breaks
-# GitHub's "Cite this repository" panel and every CFF validator. DOI-PENDING-SOFTWARE
-# is the token `release/make_release.py` greps for, so the build keeps saying so.
+# The concept DOI comes first: it is what `doi:` should be when a tool asks for one
+# identifier, because it resolves to the newest release and so never goes stale. The
+# version DOIs are listed beside it for anyone citing a specific release.
+doi: "10.5281/zenodo.22667577"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.22667577"
+    description: >-
+      Concept DOI: resolves to the latest archived release of this repository.
+  - type: doi
+    value: "10.5281/zenodo.22667578"
+    description: Version DOI of release v1.0.0.
 
 references:
   - type: article
@@ -78,10 +82,24 @@ references:
       - given-names: Matthias
         family-names: Katzfuss
     status: submitted
+  # Title, author and licence are transcribed from the record's own registered metadata,
+  # not from what the record ought to contain. The DOI is the CONCEPT DOI, which resolves
+  # to the newest version: the record gains versions as archives are added to it, and a
+  # version DOI here would go stale on the next one. A paper citing specific numbers should
+  # cite the version DOI of the version it used instead.
+  #
+  # When a new version widens the title or adds creators, this entry has to be retranscribed
+  # from the record. A citation that disagrees with the record it points at is worse than
+  # no citation.
   - type: dataset
     title: >-
-      Simulated OCO-2 soundings, split tables, standardization statistics and trained model
-      weights for amortized probabilistic CO2 retrieval
-    doi: 10.5281/zenodo.20617718
+      Simulated OCO-2 unprocessed data, processed data, and trained model weights
+    authors:
+      - given-names: Alejandro
+        family-names: Calle-Saldarriaga
+        orcid: "https://orcid.org/0000-0002-7240-1394"
+        affiliation: "University of Wisconsin-Madison"
+    year: 2026
+    doi: 10.5281/zenodo.20617717
     license: CC-BY-4.0
-    url: "https://zenodo.org/records/20617718"
+    url: "https://doi.org/10.5281/zenodo.20617717"

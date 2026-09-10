@@ -17,7 +17,49 @@ from torchvision.transforms import v2
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from .spectral_dataset import SpectralDataset
 from .covariates import get_spec, load_covariate_stats
+from .density_weights import MODES as DENSITY_MODES, scene_density_weights
 from typing import Tuple, List, Optional
+
+# `data.balance_by` takes a column name for the categorical sampler; this one reserved
+# value selects the covariate-density sampler instead. It is not a column, and the split
+# table must not have one called this -- build_density_sampler says so if it does.
+DENSITY_KEY = "density"
+
+# Defaults of the density sampler's own settings, keyed by the `data.*` name each is read
+# from. The rarity exponent is NOT here: it is `data.balance_alpha`, shared with the
+# categorical sampler, because it is the same knob with the same range and meaning.
+DENSITY_DEFAULTS = {
+    "density_mode": "inverse",
+    "density_beta": 1.0,
+    "density_k": 15,
+    "density_clip": 10.0,
+}
+
+
+def density_settings(data_cfg) -> dict:
+    """Read the density sampler's settings out of a `data` config block.
+
+    Returns the kwargs `build_density_sampler` takes, with `DENSITY_DEFAULTS` filling in
+    whatever the config does not declare. Works on a plain dict and on an OmegaConf node,
+    which is why it is a function and not a dataclass: the deterministic trainer is
+    `@hydra.main` and the three flow trainers load a plain YAML.
+
+    Validated here, at config-read time, rather than inside the estimator. A typo in a
+    submit file should cost a second and not a GPU slot plus the forty minutes of unpacking
+    that precede the first epoch -- the same reason bo_final.sh validates balance_alpha
+    before it sources job_common.sh.
+    """
+    got = {k: data_cfg.get(k, v) for k, v in DENSITY_DEFAULTS.items()}
+    mode = str(got["density_mode"])
+    if mode not in DENSITY_MODES:
+        raise ValueError(f"unknown data.density_mode '{mode}' "
+                         f"(expected one of {DENSITY_MODES})")
+    return {
+        "mode": mode,
+        "beta": float(got["density_beta"]),
+        "k": int(got["density_k"]),
+        "clip": float(got["density_clip"]),
+    }
 
 # default place where you saved μ/σ
 _DEFAULT_STATS_DIR = Path("/workspace/project/experiments/pipelines/stats")
@@ -273,11 +315,93 @@ def build_balanced_sampler(
     )
 
 
-def _train_dataloader(train_ds, batch_size, balance_by, balance_alpha, seed):
-    """Shuffled loader, or a group-balanced one when `balance_by` is set."""
+def build_density_sampler(
+    dataset,
+    cov_spec=None,
+    alpha: float = 0.5,
+    beta: float = 1.0,
+    k: int = 15,
+    clip: float = 10.0,
+    mode: str = "inverse",
+    target_dataset=None,
+    seed: int = 42,
+) -> WeightedRandomSampler:
+    """Sample training rows by the local density of the covariates the model sees.
+
+    The weighting arithmetic, the choice of estimator and what the intervention is and is
+    not are all in density_weights.py; this function is the loader-side adapter. Two
+    things it adds:
+
+    * the density lives in the covariate space of `cov_spec` -- the same preset the model
+      is given, so a weight is a function of the model's own inputs and never of `clst`,
+      which covariates.py rules inadmissible as an input;
+    * mode="ratio" needs the partition to tilt toward, which for a group-disjoint split is
+      the validation dataset. Its *covariates* are read and its targets are not.
+
+    Like `build_balanced_sampler`, `dataset` must carry its split table as `.files`, so
+    the caller has to have passed `split_csv=`.
+    """
+    if cov_spec is None:
+        raise ValueError(
+            "density weighting needs a covariate preset; pass cov_spec= (the same one the "
+            "model is built with) so the density is estimated in the model's input space"
+        )
+    files = getattr(dataset, "files", None)
+    if files is None:
+        raise TypeError(
+            "density sampling needs a dataset carrying its split table as `.files`; "
+            "pass split_csv= so the grouped datasets are used"
+        )
+    if DENSITY_KEY in files.columns:
+        raise KeyError(
+            f"the split table has a column called '{DENSITY_KEY}', which collides with "
+            f"the reserved value of data.balance_by that selects this sampler"
+        )
+    target_files = None
+    if mode == "ratio":
+        target_files = getattr(target_dataset, "files", None)
+        if target_files is None:
+            raise TypeError(
+                "density mode 'ratio' needs the validation dataset to tilt toward; it is "
+                "passed by _train_dataloader and requires split_csv="
+            )
+    weights = scene_density_weights(
+        files,
+        cov_spec.continuous,
+        cov_spec.categorical,
+        alpha=alpha,
+        beta=beta,
+        k=k,
+        clip=clip,
+        mode=mode,
+        target_files=target_files,
+    )
+    generator = torch.Generator().manual_seed(int(seed))
+    return WeightedRandomSampler(
+        weights=torch.as_tensor(weights, dtype=torch.double),
+        num_samples=len(weights),
+        replacement=True,
+        generator=generator,
+    )
+
+
+def _train_dataloader(train_ds, batch_size, balance_by, balance_alpha, seed,
+                      cov_spec=None, density=None, val_ds=None):
+    """Shuffled loader, or a reweighted one when `balance_by` is set.
+
+    `balance_by` is a column name for the categorical sampler, or the reserved value
+    DENSITY_KEY for the covariate-density sampler. `density` carries that sampler's own
+    settings (mode, beta, k, clip); `balance_alpha` is its rarity exponent, the same knob
+    and the same range as for the categorical one.
+    """
     if balance_by is None:
         return DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    sampler = build_balanced_sampler(train_ds, balance_by, balance_alpha, seed)
+    if balance_by == DENSITY_KEY:
+        sampler = build_density_sampler(train_ds, cov_spec=cov_spec, alpha=balance_alpha,
+                                        seed=seed, target_dataset=val_ds,
+                                        **(density or {}))
+    else:
+        sampler = build_balanced_sampler(train_ds, balance_by, balance_alpha, seed)
     return DataLoader(train_ds, batch_size=batch_size, sampler=sampler)
 
 
@@ -293,6 +417,7 @@ def train_val_loader(
         cov_spec=None,
         balance_by: Optional[str] = None,
         balance_alpha: float = 0.5,
+        density: Optional[dict] = None,
     )-> tuple[DataLoader, DataLoader]:
         torch.manual_seed(seed)
         if split_csv is not None:
@@ -308,7 +433,8 @@ def train_val_loader(
             train_ds, val_ds = torch.utils.data.random_split(ds, [n_train, n_val])
 
         train_dl = _train_dataloader(train_ds, train_batch_size, balance_by,
-                                     balance_alpha, seed)
+                                     balance_alpha, seed, cov_spec=cov_spec,
+                                     density=density, val_ds=val_ds)
         val_dl = DataLoader(val_ds, batch_size=val_batch_size, shuffle=False)
 
         return train_dl, val_dl
@@ -349,6 +475,7 @@ def train_val_loader_profiles(
         cov_spec=None,
         balance_by: Optional[str] = None,
         balance_alpha: float = 0.5,
+        density: Optional[dict] = None,
     ) -> Tuple[DataLoader, DataLoader]:
     torch.manual_seed(seed)
     if split_csv is not None:
@@ -364,7 +491,8 @@ def train_val_loader_profiles(
         train_ds, val_ds = torch.utils.data.random_split(ds, [n_train, n_val])
 
     train_dl = _train_dataloader(train_ds, train_batch_size, balance_by,
-                                 balance_alpha, seed)
+                                 balance_alpha, seed, cov_spec=cov_spec,
+                                 density=density, val_ds=val_ds)
     val_dl = DataLoader(val_ds, batch_size=val_batch_size, shuffle=False)
     return train_dl, val_dl
 

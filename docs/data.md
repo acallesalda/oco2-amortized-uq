@@ -32,16 +32,20 @@ simulation ensemble, used only as held-out months.
 ./scripts/get_data.sh artifacts               # tables and figures, no GPU
 ./scripts/get_data.sh train test splits       # enough to train or to re-score
 ./scripts/get_data.sh weights                 # the published checkpoints
+./scripts/get_data.sh months                  # March and July, the two held-out months
 ./scripts/get_data.sh raw                     # the raw .h5, only to redo preprocessing (2.2 GB)
 ```
 
-Everything comes from Zenodo record [20617718](https://zenodo.org/records/20617718),
-verified against the `SHA256SUMS.txt` published inside the record itself, and unpacked to
-the paths the code already defaults to:
+Everything comes from Zenodo
+[`10.5281/zenodo.20617717`](https://doi.org/10.5281/zenodo.20617717), verified against the
+`SHA256SUMS.txt` published inside the record itself, and unpacked to the paths the code
+already defaults to:
 
 ```
 scratch/simulated/files/train/           aux_data.csv + one .npy per sounding
 scratch/simulated/files/test/            the same, plus <id>_cov.npy ACOS covariances
+scratch/simulated/files/202003/          March, the same layout as test/       [months]
+scratch/simulated/files/202007/          July, likewise                        [months]
 scratch/simulated/files/splits/          the split tables
 scratch/simulated/og_data/               raw .h5 soundings                    [raw only]
 experiments/pipelines/stats/<split>/     per-split standardization constants
@@ -52,6 +56,29 @@ group_split_v1_cov.csv                   the primary split table, at the root
 
 All of those are gitignored. `downloads/` keeps the tarballs so a re-run is free; delete it
 when you are done.
+
+That DOI is the record's **concept** DOI, which resolves to whichever version is newest.
+`get_data.sh` hardcodes no version: it asks Zenodo which version is current and reads that
+version's file list, so an archive added in a later version is fetchable without changing
+the script. To reproduce against one specific version instead — the one a paper cited,
+rather than the newest — pin it:
+
+```bash
+OCO2_ZENODO_RECORD=20617718 ./scripts/get_data.sh --list
+```
+
+### The held-out months
+
+`months` brings down March and July 2020 as the two tarballs the scoring jobs themselves
+consumed, rather than a repacking of them, so the bytes scored in the paper and the bytes
+in the record are the same bytes. Each carries that month's spectra, its ACOS profile
+covariances, its covariate table and its month split table — everything
+`experiments/scoring/predict.py` needs to re-score a checkpoint on an unseen month. The
+February archives (`train`, `test`) do not contain them.
+
+Regenerating the paper's temporal-generalization table needs none of this: the per-sounding
+predictions are already in `artifacts`, and `rebuild.sh` reads those. The months are for
+re-running the network, not for re-making the table.
 
 ## The split tables
 

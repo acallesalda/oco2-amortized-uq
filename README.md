@@ -29,8 +29,8 @@ second experiment scores February-trained models on **March and July 2020**.
 | | |
 |---|---|
 | **Code** (this repository) | <https://github.com/acallesalda/oco2-amortized-uq> |
-| **Software archive** (citable, immutable) | Zenodo — archived at publication; the DOI is added here and to `CITATION.cff` when it is minted <!-- DOI-PENDING-SOFTWARE --> |
-| **Data, splits and trained weights** | Zenodo record [20617718](https://zenodo.org/records/20617718), `10.5281/zenodo.20617718` |
+| **Software archive** (citable, immutable) | Zenodo [`10.5281/zenodo.22667577`](https://doi.org/10.5281/zenodo.22667577) — resolves to the latest release |
+| **Data, splits and trained weights** | Zenodo [`10.5281/zenodo.20617717`](https://doi.org/10.5281/zenodo.20617717) — resolves to the latest version |
 
 The repository holds no data and no checkpoints — everything numerical comes from the
 Zenodo record. See [`docs/data.md`](docs/data.md).
@@ -152,14 +152,21 @@ used, and how to re-run the search itself.
 
 ## Data and software availability
 
-* **Data, split tables, per-split standardization statistics and trained weights**:
-  Zenodo record [20617718](https://zenodo.org/records/20617718)
-  (`10.5281/zenodo.20617718`), CC-BY-4.0. The simulated OCO-2 ensemble was produced at the
-  Jet Propulsion Laboratory, California Institute of Technology.
-* **Software**: this repository, MIT licence, archived at Zenodo when the paper is
-  published — that snapshot, not this branch, is the citable and immutable version, and
-  its DOI appears here and in `CITATION.cff` as soon as it exists.
-  <!-- DOI-PENDING-SOFTWARE -->
+* **Data, split tables, per-split standardization statistics, trained weights and the
+  per-sounding predictive artifacts**: Zenodo
+  [`10.5281/zenodo.20617717`](https://doi.org/10.5281/zenodo.20617717), CC-BY-4.0. That is
+  the *concept* DOI and always resolves to the newest version; each version also has its
+  own DOI (version 1 is
+  [`10.5281/zenodo.20617718`](https://doi.org/10.5281/zenodo.20617718)), and a paper should
+  cite the version it used. `scripts/get_data.sh` resolves the newest version itself, so it
+  needs no DOI and no editing when a version is added. The simulated OCO-2 ensemble was
+  produced at the Jet Propulsion Laboratory, California Institute of Technology.
+* **Software**: this repository, MIT licence, archived at Zenodo
+  ([`10.5281/zenodo.22667577`](https://doi.org/10.5281/zenodo.22667577)). That snapshot, not this
+  branch, is the citable and immutable version. The DOI above is the *concept* DOI and
+  always resolves to the newest release; each release also has its own version DOI
+  (v1.0.0 is [`10.5281/zenodo.22667578`](https://doi.org/10.5281/zenodo.22667578)), and a paper
+  should cite the version it used. Development happens on GitHub.
 
 ## Cite
 
@@ -168,4 +175,7 @@ DOI if you use the code.
 
 ## Licence
 
-MIT — see [`LICENSE`](LICENSE). The dataset is distributed separately under CC-BY-4.0.
+MIT — see [`LICENSE`](LICENSE). It covers the software in this repository only.
+The simulated OCO-2 dataset, the trained weights and the predictive artifacts are
+distributed separately, under CC-BY-4.0, from Zenodo
+[`10.5281/zenodo.20617717`](https://doi.org/10.5281/zenodo.20617717).

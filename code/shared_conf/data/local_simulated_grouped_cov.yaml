@@ -37,3 +37,20 @@ val_batch_size: 4096
 # alpha tempers it: 0 = off, 1 = full inverse frequency, 0.5 = square root.
 balance_by: null
 balance_alpha: 0.5
+
+# Covariate-density sampling. `balance_by: density` is the reserved value that selects it
+# in place of a column: per-row weights come from the local density of the `covariates`
+# preset in SCENE space, so the loss is reweighted by what the model can actually see
+# rather than by `clst`, which covariates.py rules inadmissible as an input. Declared here
+# for the same struct-mode reason as balance_by above.
+#   density_mode  "inverse" = p_hat ** -balance_alpha, the rarity weighting.
+#                 "ratio"   = (p_hat_val / p_hat_train) ** balance_alpha, covariate-shift
+#                             correction toward the validation inputs. Report it as such.
+#   density_beta  1 = every training SCENE gets equal expected weight whatever its
+#                 replicate count; 0 = published replicate-proportional behaviour.
+#   density_k     neighbour rank whose median distance sets the kernel bandwidth.
+#   density_clip  cap on the ratio of heaviest to lightest scene weight.
+density_mode: inverse
+density_beta: 1.0
+density_k: 15
+density_clip: 10.0

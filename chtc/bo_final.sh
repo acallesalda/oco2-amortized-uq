@@ -39,6 +39,29 @@
 # distinct scenes in a rare cluster is what it is -- so it corrects the loss weighting
 # only.
 #
+# WHAT gets reweighted is `OCO2_BALANCE_BY`, and it has two values. `clst` (the default,
+# and the published balanced run) equalises the SOM cluster. `density` reweights by the
+# local density of the covariate preset in scene space instead -- so the loss is tilted by
+# what the model can see rather than by a label covariates.py rules inadmissible as an
+# input -- and its archives carry `_dens` rather than `_bal`. Four optional settings go
+# with it, all unset by default:
+#
+#   OCO2_DENSITY_MODE   "inverse" (default) weights by p_hat ** -alpha. "ratio" weights by
+#                       (p_hat_val / p_hat_train) ** alpha, which is covariate-shift
+#                       correction toward the validation INPUTS and has to be reported as
+#                       such rather than as plain reweighting.
+#   OCO2_DENSITY_BETA   1 (default) gives every training scene equal expected weight
+#                       whatever its replicate count -- on ext_v1 that alone removes the
+#                       42.5 %-of-rows imbalance ext_cap.dag fixes in the prep job. 0 is
+#                       the published replicate-proportional behaviour.
+#   OCO2_DENSITY_K      neighbour rank setting the kernel bandwidth (default 15).
+#   OCO2_DENSITY_CLIP   cap on heaviest/lightest scene weight (default 10).
+#
+# Read code/data/loading/density_weights.py before reading much into a density run: at
+# alpha=0.5 on group_split_v1 it moves cluster 9 from 3.9 % to 6.8 % of the loss and
+# cluster 8 from 3.3 % to 3.3 %, because cluster 8 is not identifiable from these inputs.
+# It is a different intervention from the balanced run, not a smoothed version of it.
+#
 # THE SCHEDULE, from the environment rather than from an argument, because it is a property
 # of the run and not of the study. Every one of these is unset by default and an unset one
 # changes nothing -- a job that exports none of them trains exactly the model this script
@@ -87,6 +110,21 @@ if [ -n "$BALANCE_ALPHA" ]; then
         echo "ERROR: balance_alpha must be a number in [0, 1], got '$BALANCE_ALPHA'."
         exit 2
     fi
+    # WHAT is reweighted: a column of the split table (`clst`, the published balanced
+    # run) or the reserved value `density`, which weights by the local density of the
+    # covariate preset in scene space instead. Default `clst`, so a job that exports
+    # nothing gets exactly the run train_balanced.sub has always submitted.
+    BALANCE_BY="${OCO2_BALANCE_BY:-clst}"
+    case "$BALANCE_BY" in
+        clst)    BAL_SUFFIX="_bal" ;;
+        density) BAL_SUFFIX="_dens" ;;
+        *) echo "ERROR: OCO2_BALANCE_BY must be 'clst' or 'density', got '$BALANCE_BY'."
+           echo "       Any other column name would work in the trainer, but it would"
+           echo "       share an archive name with one of these two and OSDF refuses to"
+           echo "       overwrite. Add a suffix here before using one."
+           exit 2 ;;
+    esac
+
     # Two spellings of the same override, because the two trainer families parse
     # differently and the first balanced run died on exactly this. The deterministic
     # trainers are @hydra.main, which composes in STRUCT mode: `data.balance_by=clst`
@@ -94,9 +132,37 @@ if [ -n "$BALANCE_ALPHA" ]; then
     # add-or-override form that works whether or not it is declared. The flow trainers
     # take `--set k=v` into a plain dict (code/utils/cfg.py:dotted_overrides), which
     # creates missing keys and would read a leading `++` as part of the key name.
-    BALANCE_HYDRA=("++data.balance_by=clst" "++data.balance_alpha=$BALANCE_ALPHA")
-    BALANCE_SET=("data.balance_by=clst" "data.balance_alpha=$BALANCE_ALPHA")
-    BAL_SUFFIX="_bal"
+    BALANCE_HYDRA=("++data.balance_by=$BALANCE_BY" "++data.balance_alpha=$BALANCE_ALPHA")
+    BALANCE_SET=("data.balance_by=$BALANCE_BY" "data.balance_alpha=$BALANCE_ALPHA")
+
+    # The density sampler's own four settings. Validated here for the same reason alpha
+    # is: a typo should cost a second, not a GPU slot plus forty minutes of unpacking.
+    # Unset ones fall through to DENSITY_DEFAULTS in spectral_loader.py, so a job that
+    # exports only OCO2_BALANCE_BY=density gets mode=inverse, beta=1, k=15, clip=10.
+    if [ "$BALANCE_BY" = density ]; then
+        if [ -n "${OCO2_DENSITY_MODE:-}" ]; then
+            case "$OCO2_DENSITY_MODE" in
+                inverse|ratio) ;;
+                *) echo "ERROR: OCO2_DENSITY_MODE must be inverse or ratio, got '$OCO2_DENSITY_MODE'."
+                   exit 2 ;;
+            esac
+            BALANCE_HYDRA+=("++data.density_mode=$OCO2_DENSITY_MODE")
+            BALANCE_SET+=("data.density_mode=$OCO2_DENSITY_MODE")
+        fi
+        for _pair in "density_beta:${OCO2_DENSITY_BETA:-}" \
+                     "density_k:${OCO2_DENSITY_K:-}" \
+                     "density_clip:${OCO2_DENSITY_CLIP:-}"; do
+            _key="${_pair%%:*}"; _val="${_pair#*:}"
+            [ -n "$_val" ] || continue
+            if ! echo "$_val" | grep -Eq '^[0-9]+([.][0-9]+)?$'; then
+                echo "ERROR: $_key must be a non-negative number, got '$_val'."
+                exit 2
+            fi
+            BALANCE_HYDRA+=("++data.$_key=$_val")
+            BALANCE_SET+=("data.$_key=$_val")
+        done
+        unset _pair _key _val
+    fi
 fi
 
 JOB="${STUDY}_final${BAL_SUFFIX}$(oco2_split_suffix)"

@@ -22,6 +22,7 @@
 #     ./chtc/fetch_results.sh --months-full  # ALL-February models on March and July
 #     ./chtc/fetch_results.sh --ext        # the extension run: February test AND both months
 #     ./chtc/fetch_results.sh --ext-cap    # the same, with the replicates capped
+#     ./chtc/fetch_results.sh --dens       # the covariate-density weighting arm (dens.dag)
 #     ./chtc/fetch_results.sh --balanced     # the cluster-balanced retrains + scores
 #     ./chtc/fetch_results.sh --discrepancy  # delta over all 451 reference soundings
 #     ./chtc/fetch_results.sh --gap          # the in-sample side of the generalization gap
@@ -235,6 +236,14 @@ EXT_CAP_JOBS=(oco2_ext_cap_v1
               eval_last4_202003_extcap eval_last4_marginal_202003_extcap
               eval_xco2_202007_extcap eval_profiles_202007_extcap
               eval_last4_202007_extcap eval_last4_marginal_202007_extcap)
+# The covariate-density weighting arm (dens.dag): the two PROFILE studies only, retrained
+# on ext_v1 with the sampler swapped for a density over the `scene_prior` covariates in
+# scene space, then rescored on the same 4,489 February test soundings. Four jobs and no
+# prep, because oco2_ext_v1.tar.gz is already in /staging from prep_ext -- which is what
+# makes this the cheapest arm in the project. Everything carries `_dens` so it cannot land
+# on `_ext` or `_bal`.
+DENS_JOBS=(det_profiles_final_dens_ext nf_profiles_final_dens_ext
+           eval_profiles_dens eval_last4_marginal_dens)
 # The discrepancy characterization (discrepancy.sub): one small CPU job that recovers
 # delta + epsilon from every raw file and reports the block structure, the effective
 # rank of Sigma_delta and the share of the ACOS error delta drives. Its own list
@@ -287,7 +296,7 @@ if [ "${1:-}" = "--status" ]; then
     echo "results in $RESULTS:"
     printf "\n%-30s %10s  %s\n" JOB SIZE FINISHED
     for job in "${ALL[@]}" "${EXTRA_JOBS[@]}" "${PUB_JOBS[@]}" "${RERUN_JOBS[@]}" \
-               "${MONTH_JOBS[@]}" "${BALANCED_JOBS[@]}"; do
+               "${MONTH_JOBS[@]}" "${BALANCED_JOBS[@]}" "${DENS_JOBS[@]}"; do
         f=$(job_archive "$job")
         if [ -f "$f" ]; then
             printf "%-30s %10s  %s%s\n" "$job" \
@@ -627,6 +636,7 @@ case "${1:-}" in
     --months-full) jobs=("${MONTH_FULL_JOBS[@]}") ;;
     --ext)    jobs=("${EXT_JOBS[@]}") ;;
     --ext-cap) jobs=("${EXT_CAP_JOBS[@]}") ;;
+    --dens)   jobs=("${DENS_JOBS[@]}") ;;
     --balanced) jobs=("${BALANCED_JOBS[@]}") ;;
     --last1)  jobs=("${SURFACE_JOBS[@]}") ;;
     --discrepancy) jobs=("${DISCREPANCY_JOBS[@]}") ;;
@@ -643,6 +653,7 @@ fi
 
 n_ok=0
 n_missing=0
+n_bad=0
 for job in "${jobs[@]}"; do
     tarball=$(job_archive "$job")
     echo
@@ -650,6 +661,26 @@ for job in "${jobs[@]}"; do
     if [ ! -f "$tarball" ]; then
         echo "    not present in $RESULTS -- still running, or the node failed."
         n_missing=$((n_missing + 1))
+        continue
+    fi
+
+    # Is the archive even whole? A job that is evicted part-way through UPLOADING leaves a
+    # truncated object on OSDF, and the retry is then refused with "remote object already
+    # exists" and held -- so a held job can mean either "ran twice" or "uploaded half
+    # once", and only this tells them apart. `gzip -t` reads the whole stream and is the
+    # cheapest complete check there is.
+    #
+    # Tested BEFORE run_meta is read, because a truncated archive makes that read return
+    # "?" and the warning about it blames the job for what the transfer did. And tested at
+    # all because `tar -xzf` on a truncated archive exits non-zero under `set -e`, which
+    # aborted this whole loop on 2026-09-08 and left twenty other archives unfetched.
+    if ! gzip -t "$tarball" 2>/dev/null; then
+        echo "    TRUNCATED: $(du -h "$tarball" | cut -f1) and not a complete gzip stream."
+        echo "               The upload was interrupted; the compute may well have"
+        echo "               succeeded but this archive cannot be recovered. Delete it and"
+        echo "               re-run the node:"
+        echo "                 ./fetch_results.sh --clean $job"
+        n_bad=$((n_bad + 1))
         continue
     fi
 
@@ -662,7 +693,14 @@ for job in "${jobs[@]}"; do
         echo "             checkpoints are partial. Look at chtc/logs/$job.err."
     fi
 
-    tar -xzf "$tarball" -C "$REPO"
+    # `|| { ...; continue; }` rather than a bare call: one unreadable archive must not stop
+    # the other twenty from being fetched.
+    if ! tar -xzf "$tarball" -C "$REPO"; then
+        echo "    EXTRACTION FAILED even though the gzip stream is whole. Left in place;"
+        echo "    look at it by hand before deleting it."
+        n_bad=$((n_bad + 1))
+        continue
+    fi
     echo "    unpacked:"
     tar -tzf "$tarball" | grep -E '\.pt$' | sed 's/^/      /' || echo "      (no .pt files)"
     n_ok=$((n_ok + 1))
@@ -670,7 +708,20 @@ done
 
 echo
 echo "=============================================================="
-echo " $n_ok unpacked, $n_missing not available yet."
+if [ "$n_bad" -gt 0 ]; then
+    echo " $n_ok unpacked, $n_missing not available yet, $n_bad UNUSABLE."
+    echo
+    echo " An unusable archive is almost always an interrupted upload: the job's compute"
+    echo " may have finished, but what reached OSDF is a partial object, and the transfer"
+    echo " retry was then refused with 'remote object already exists' and held. There is"
+    echo " nothing to salvage in the archive. Delete it and re-run the node:"
+    echo "     ./fetch_results.sh --clean <job>"
+    echo "     condor_rm <the held job>       # it can only collide again"
+    echo " then resubmit that node. Its children's inputs are the archive, so they cannot"
+    echo " run until it exists."
+else
+    echo " $n_ok unpacked, $n_missing not available yet."
+fi
 echo
 # Every split's weights tree, not just the group split's. A model that unpacked into
 # full_feb_v1/ and was never printed here is a model nobody knows arrived -- which is the

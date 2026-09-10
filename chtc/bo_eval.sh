@@ -59,15 +59,25 @@ $(bo_task_studies "$TASK")
 EOF
 SFX="$(oco2_split_suffix)"
 
-# OCO2_BALANCED=1 scores the cluster-balanced retrains (train_balanced.sub) instead of the
-# published winners. It moves both the archive names and the weights directory together --
-# scoring a balanced archive out of an unbalanced weights path would not fail, it would
-# report the wrong model's numbers under the balanced label.
+# OCO2_BALANCED selects a REWEIGHTED retrain instead of the published winners. It moves
+# both the archive names and the weights directory together -- scoring a reweighted archive
+# out of an unweighted weights path would not fail, it would report the wrong model's
+# numbers under the reweighted label.
+#
+#   1         the cluster-balanced retrains, train_balanced.sub          (`_bal`)
+#   density   the covariate-density retrains, train_ext_dens.sub         (`_dens`)
+#
+# The two suffixes are bo_final.sh's BAL_SUFFIX and have to stay in step with it.
 BAL=""
-if [ "${OCO2_BALANCED:-0}" = "1" ]; then
-    BAL="_bal"
-    echo "--- scoring the CLUSTER-BALANCED retrains (OCO2_BALANCED=1) ---"
-fi
+case "${OCO2_BALANCED:-0}" in
+    0|"")    ;;
+    1)       BAL="_bal"
+             echo "--- scoring the CLUSTER-BALANCED retrains (OCO2_BALANCED=1) ---" ;;
+    density) BAL="_dens"
+             echo "--- scoring the COVARIATE-DENSITY retrains (OCO2_BALANCED=density) ---" ;;
+    *) echo "ERROR: OCO2_BALANCED must be 0, 1 or density, got '$OCO2_BALANCED'." >&2
+       exit 2 ;;
+esac
 DET_TAR="${DET_STUDY}_final${BAL}${SFX}.tar.gz"
 FLOW_TAR="${FLOW_STUDY}_final${BAL}${SFX}.tar.gz"
 

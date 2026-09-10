@@ -54,6 +54,8 @@ chtc/*.dag.rescue*
 # by scripts/make_zenodo_bundles.py. Both are derived from tracked files and are
 # rebuilt on demand.
 dist/
+report.md
+writing.md
 
 # What scripts/get_data.sh downloads and where it unpacks it. All of it comes from
 # Zenodo, none of it belongs in git.

@@ -20,7 +20,8 @@ except ImportError:
 
 from nflows import flows, distributions, transforms
 
-from data.loading.spectral_loader import train_val_loader_profiles, train_val_loader
+from data.loading.spectral_loader import (DENSITY_KEY, density_settings,
+                                          train_val_loader_profiles, train_val_loader)
 from data.loading.covariates import get_spec, load_covariate_stats, model_aux_kwargs
 from utils.schedule import cosine_with_warmup, describe as describe_sched
 from modeling.full_regressor_profiles import FullRegressorProfiles
@@ -320,8 +321,15 @@ def train_one_trial(
     # Cluster-balanced training. data.balance_by names a column of the split table to
     # equalise (use "clst"); data.balance_alpha tempers it, 0 = off, 1 = full inverse
     # frequency, 0.5 = square root. Unset -> uniform shuffling, i.e. published behaviour.
+    # `balance_by="density"` selects the covariate-density sampler instead of a column;
+    # data.density_{mode,beta,k,clip} are its own settings and alpha is shared. See
+    # code/data/loading/density_weights.py for what that intervention is and is not.
     balance_by = cfg["data"].get("balance_by", None)
     balance_alpha = float(cfg["data"].get("balance_alpha", 0.5))
+    density = density_settings(cfg["data"]) if balance_by == DENSITY_KEY else None
+    if density is not None:
+        print(f"[balance] covariate-density sampling in {cov_spec.name} space "
+              f"(alpha={balance_alpha:.2f}, {density})")
     loader_fn = train_val_loader if TARGET_MODE == "xco2" else train_val_loader_profiles
     train_dl, val_dl = loader_fn(
         root=cfg["data"]["root"],
@@ -337,6 +345,7 @@ def train_one_trial(
         cov_spec=cov_spec,
         balance_by=balance_by,
         balance_alpha=balance_alpha,
+        density=density,
     )
 
     # Warm batch
