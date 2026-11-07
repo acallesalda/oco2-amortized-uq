@@ -98,19 +98,33 @@ def _ref_labels(art: Artifact, split: pd.DataFrame | None):
     100 replicates of each. A bootstrap that resamples rows treats replicates of one scene
     as independent draws and reports a standard error that is far too small; the honest one
     resamples scenes. Both are reported here so the size of the difference is visible.
+
+    A reference sounding is identified by its cluster AND its ref number: ref numbers restart
+    in every cluster, so grouping on `ref` alone merges distinct reference soundings that
+    share a number (37 groups instead of 45 on the reference-disjoint test partition). The
+    sounding ID `clstNNNN_refNNNN_repNNNN` carries both, so its prefix is the label; the
+    `clst`/`ref` columns are the fallback when an ID does not have that form.
     """
+    ids = np.asarray(art["ids"]).astype(str)
+    if all("_ref" in i and "_rep" in i for i in ids):
+        return np.array([i.rsplit("_rep", 1)[0] for i in ids])
+    clusters = _cluster_labels(art, split)
+    ref = None
     for key in ("ref", "reference_sounding"):
         v = art.get(key)
         if v is not None:
-            return np.asarray(v)
-    if split is None or "ID" not in split.columns:
+            ref = np.asarray(v)
+            break
+    if ref is None and split is not None and "ID" in split.columns:
+        idx = split.set_index(split["ID"].astype(str))
+        for key in ("ref", "reference_sounding"):
+            if key in idx.columns:
+                ref = idx[key].reindex(ids).to_numpy()
+                break
+    if ref is None or clusters is None:
         return None
-    ids = np.asarray(art["ids"]).astype(str)
-    idx = split.set_index(split["ID"].astype(str))
-    for key in ("ref", "reference_sounding"):
-        if key in idx.columns:
-            return idx[key].reindex(ids).to_numpy()
-    return None
+    return np.char.add(np.asarray(clusters).astype(str),
+                       np.char.add("/", np.asarray(ref).astype(str)))
 
 
 def _boot_se_grouped(values, groups, n_boot: int = 500, seed: int = 0) -> float:

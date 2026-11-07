@@ -7,6 +7,7 @@
 #     ./scripts/get_data.sh train test stats splits
 #     ./scripts/get_data.sh weights                the published checkpoints
 #     ./scripts/get_data.sh months                 March and July, the held-out months
+#     ./scripts/get_data.sh apriori                the operational a priori (prior rows of Tables 6-7)
 #     ./scripts/get_data.sh all                    everything, including the raw HDF5
 #
 # Needs curl, tar and sha256sum (or shasum). No Python. Safe to interrupt and re-run:
@@ -19,6 +20,7 @@
 #     scratch/simulated/files/{202003,202007}/     the held-out months, the same layout
 #     scratch/simulated/files/splits/              the split tables
 #     scratch/simulated/og_data/                   raw .h5 soundings (only with `raw`)
+#     scratch/simulated/apriori/                   a priori x_a, S_a, h per reference sounding
 #     experiments/pipelines/stats/<split>/         per-split standardization constants
 #     experiments/weights/<split>/                 checkpoints
 #     experiments/scoring/                         predictive artifacts (.npz + .meta.json)
@@ -43,7 +45,7 @@ ZENODO_CONCEPT=20617717
 ZENODO_RECORD="${OCO2_ZENODO_RECORD:-}"
 # Used only when the resolution call cannot be made at all. Being one version behind is a
 # recoverable state -- every absent archive is named -- and being unable to run is not.
-ZENODO_RECORD_FALLBACK=20617718
+ZENODO_RECORD_FALLBACK=24025972
 BASE_URL=""
 
 cd "$(dirname "$0")/.."
@@ -78,6 +80,7 @@ ITEMS=(
 "months|oco2_month_202003_full|plain:$ROOT|MARCH 2020: processed spectra, ACOS profile covariances, covariates and the month split table|re-scoring or re-fitting the temporal generalization experiment"
 "months|oco2_month_202007_full|plain:$ROOT|JULY 2020: the same, for the second held-out month|re-scoring or re-fitting the temporal generalization experiment"
 "raw|oco2_unprocessed_og_data|strip:3:$ROOT/scratch/simulated|raw .h5 soundings|re-running extract_data_tree.py / clean_data.py only"
+"apriori|oco2_apriori|plain:$ROOT|operational a priori per reference sounding (x_a, S_a, XCO2 prior and pressure weighting), February, March and July 2020|the prior rows of Tables 6-7 (revision2/prior_gaussian.py)"
 )
 
 SUMS="$DL/SHA256SUMS.txt"
@@ -191,7 +194,11 @@ untar_list() {
 }
 
 download() {
-    local file=$1 want=$2 dest="$DL/$file"
+    # Two statements, not one: bash expands every word of a `local` line before it assigns
+    # any of them, so `dest="$DL/$file"` on the same line reads an unset $file and aborts
+    # under `set -u`.
+    local file=$1 want=$2
+    local dest="$DL/$file"
     if [ -s "$dest" ] && [ "$(sha_of "$dest")" = "$want" ]; then
         echo "    already downloaded and verified"
         return 0
@@ -212,7 +219,8 @@ download() {
 }
 
 unpack() {
-    local file=$1 rule=$2 src="$DL/$file"
+    local file=$1 rule=$2
+    local src="$DL/$file"
     local kind=${rule%%:*} rest=${rule#*:}
     case "$kind" in
         strip)
